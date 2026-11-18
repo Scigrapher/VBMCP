@@ -451,7 +451,9 @@ bool CreateProjectVbp(const ProjectTemplateSpec& spec, const std::vector<std::ws
             vbpText += key + L"=" + file + L"\r\n";
         }
     }
-    if (spec.kind == ProjectKind::StandardExe && spec.createDefaultStartup) {
+    if (spec.kind == ProjectKind::StandardExe && !spec.startup.empty()) {
+        vbpText += L"Startup=\"" + Utf8ToWide(spec.startup) + L"\"\r\n";
+    } else if (spec.kind == ProjectKind::StandardExe && spec.createDefaultStartup) {
         bool hasStartup = false;
         for (size_t i = 0; i < spec.components.size(); ++i) {
             if (IEquals(spec.components[i].kind, "module") &&
@@ -556,6 +558,10 @@ bool CreateProjectFromTemplate(const ProjectTemplateSpec& input,
             }
         }
         std::wstring fullPath = PathJoin(spec.directory, Utf8ToWide(comp.fileName));
+        if (!EnsureDirectory(PathDirectory(fullPath))) {
+            error = L"Cannot create component directory: " + PathDirectory(fullPath);
+            return false;
+        }
         if (!spec.overwrite && FileExists(fullPath)) {
             error = L"Component file already exists: " + fullPath;
             return false;

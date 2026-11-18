@@ -34,6 +34,9 @@ private:
     ToolResult ProjectList();
     ToolResult ProjectGet(const Json& args);
     ToolResult ProjectCreate(const Json& args);
+    ToolResult ProjectScaffold(const Json& args);
+    ToolResult ProjectInspect(const Json& args);
+    ToolResult ProjectValidate(const Json& args);
     ToolResult ProjectOpen(const Json& args);
     ToolResult ProjectClose(const Json& args);
     ToolResult ProjectSave(const Json& args);
@@ -62,6 +65,7 @@ private:
     ToolResult CodeGetLines(const Json& args);
     ToolResult CodeLinesEdit(const Json& args);
     ToolResult CodeFind(const Json& args);
+    ToolResult CodeSearch(const Json& args);
     ToolResult CodeCreateEvent(const Json& args);
     ToolResult CodeStructure(const Json& args);
     ToolResult CodePanesList(const Json& args);
@@ -83,6 +87,7 @@ private:
     ToolResult SourceWrite(const Json& args);
     ToolResult SourceEdit(const Json& args);
     ToolResult SourceList(const Json& args);
+    ToolResult Vb6Batch(const Json& args);
 
     const ServerConfig& config_;
     ComPtr<IDispatch> vbe_;

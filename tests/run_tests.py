@@ -194,6 +194,29 @@ def test_modern_http(ready, work: Path):
     check(init["protocolVersion"] == "2025-03-26", "protocol version negotiation failed")
     check(init["serverInfo"]["name"] == "VB6 MCP Addin", "serverInfo mismatch")
     check("tools" in init["capabilities"], "tools capability missing")
+    check("resources" in init["capabilities"], "resources capability missing")
+    check("prompts" in init["capabilities"], "prompts capability missing")
+
+    resources = rpc(host, port, "resources/list", {}, token=token)
+    resource_uris = {item["uri"] for item in resources["resources"]}
+    check("vb6://guide/ai-quickstart" in resource_uris, "AI quick-start resource missing")
+    quick_start = rpc(
+        host, port, "resources/read", {"uri": "vb6://guide/ai-quickstart"}, token=token
+    )
+    check("project_scaffold" in quick_start["contents"][0]["text"],
+          "AI quick-start resource content missing workflow")
+    prompts = rpc(host, port, "prompts/list", {}, token=token)
+    check(any(item["name"] == "create-vb6-app" for item in prompts["prompts"]),
+          "create-vb6-app prompt missing")
+    prompt = rpc(
+        host,
+        port,
+        "prompts/get",
+        {"name": "create-vb6-app", "arguments": {"requirements": "A small contact manager"}},
+        token=token,
+    )
+    check("project_scaffold" in prompt["messages"][0]["content"]["text"],
+          "create-vb6-app prompt content missing scaffold workflow")
 
     notification = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
     status, _, raw = request(
@@ -204,7 +227,11 @@ def test_modern_http(ready, work: Path):
     tools_result = rpc(host, port, "tools/list", {}, token=token)
     names = {item["name"] for item in tools_result["tools"]}
     required = {
+        "vb6_batch",
         "project_create",
+        "project_scaffold",
+        "project_inspect",
+        "project_validate",
         "project_list",
         "project_add_component",
         "project_add_file",
@@ -213,6 +240,7 @@ def test_modern_http(ready, work: Path):
         "code_get_lines",
         "code_lines_edit",
         "code_find",
+        "code_search",
         "code_create_event",
         "code_structure",
         "component_properties_list",
@@ -802,6 +830,126 @@ def test_modern_http(ready, work: Path):
     check(reopened["name"] == "SimProject", "project_open failed")
     status = tool(host, port, "ide_status", token=token)
     check(status["transport"]["mcpEndpoint"].endswith("/mcp"), "ide_status transport merge failed")
+    check(status.get("serverVersion") == "1.1.0", "ide_status server version missing")
+    check("toolGroups" in status and "recommendedWorkflow" in status,
+          "ide_status AI discovery metadata missing")
+
+    inspected = tool(
+        host, port, "project_inspect", {"project": "SimProject"}, token=token
+    )
+    check(inspected["componentCount"] >= 1 and "components" in inspected,
+          "project_inspect returned no component map")
+    searched = tool(
+        host,
+        port,
+        "code_search",
+        {"project": "SimProject", "query": "Sub Main", "wholeWord": False},
+        token=token,
+    )
+    check(searched["count"] >= 1, "code_search did not find Sub Main")
+    validation = tool(
+        host, port, "project_validate", {"project": "SimProject"}, token=token
+    )
+    check("valid" in validation and "diagnostics" in validation,
+          "project_validate returned no result")
+
+    scaffold_dir = work / "ScaffoldApp"
+    scaffolded = tool(
+        host,
+        port,
+        "project_scaffold",
+        {
+            "directory": str(scaffold_dir),
+            "name": "ScaffoldApp",
+            "title": "Scaffold App",
+            "type": "standard_exe",
+            "startup": "Sub Main",
+            "build": True,
+            "components": [
+                {
+                    "kind": "module",
+                    "name": "AppMain",
+                    "code": 'Public Sub Main()\r\n    Form1.Show\r\nEnd Sub',
+                },
+                {
+                    "kind": "form",
+                    "name": "Form1",
+                    "title": "Scaffold Form",
+                    "controls": [
+                        {
+                            "type": "label",
+                            "name": "lblTitle",
+                            "properties": {"Caption": "Hello", "Left": 120, "Top": 120},
+                        },
+                        {
+                            "type": "commandbutton",
+                            "name": "cmdClose",
+                            "properties": {"Caption": "Close", "Left": 120, "Top": 480},
+                        },
+                    ],
+                    "code": 'Private Sub cmdClose_Click()\r\n    Unload Me\r\nEnd Sub',
+                },
+                {
+                    "kind": "class",
+                    "name": "AppState",
+                    "code": "Public Version As String",
+                },
+            ],
+        },
+        token=token,
+    )
+    check(scaffolded["success"] is True, "project_scaffold failed")
+    check(Path(scaffolded["vbpPath"]).exists(), "scaffolded VBP missing")
+    check(len(scaffolded["components"]) == 3, "scaffold component manifest lost components")
+    scaffold_validation = tool(
+        host, port, "project_validate", {"project": "ScaffoldApp"}, token=token
+    )
+    check(scaffold_validation["valid"] is True, "scaffolded project failed validation")
+    scaffold_inspection = tool(
+        host, port, "project_inspect", {"project": "ScaffoldApp"}, token=token
+    )
+    member_names = {
+        member["name"]
+        for component in scaffold_inspection["components"]
+        for member in component.get("members", [])
+    }
+    check({"Main", "cmdClose_Click"}.issubset(member_names),
+          "project_inspect did not return scaffolded members")
+    control_names = {
+        control["name"]
+        for component in scaffold_inspection["components"]
+        for control in component.get("controls", [])
+    }
+    check({"lblTitle", "cmdClose"}.issubset(control_names),
+          "project_inspect did not return scaffolded controls")
+    scaffold_search = tool(
+        host,
+        port,
+        "code_search",
+        {"project": "ScaffoldApp", "query": "cmdClose", "component": "Form1"},
+        token=token,
+    )
+    check(scaffold_search["count"] >= 1, "scaffolded event code was not searchable")
+    batched = tool(
+        host,
+        port,
+        "vb6_batch",
+        {
+            "calls": [
+                {
+                    "tool": "component_get_code",
+                    "arguments": {"project": "ScaffoldApp", "component": "AppMain"},
+                },
+                {
+                    "tool": "code_search",
+                    "arguments": {"project": "ScaffoldApp", "query": "Unload Me"},
+                },
+            ]
+        },
+        token=token,
+    )
+    check(batched["success"] is True and batched["executedCalls"] == 2,
+          "vb6_batch did not execute both calls")
 
     status, _, raw = request(
         host,

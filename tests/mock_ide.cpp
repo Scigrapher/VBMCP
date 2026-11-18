@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <iterator>
+#include <set>
 
 namespace mcpaddin {
 
@@ -58,6 +59,11 @@ std::string ReplaceSimple(const std::string& source, const std::string& find,
         }
     }
     return result;
+}
+
+bool StartsWithNoCase(const std::wstring& value, const wchar_t* prefix) {
+    size_t length = wcslen(prefix);
+    return value.size() >= length && _wcsnicmp(value.c_str(), prefix, length) == 0;
 }
 
 std::vector<std::wstring> SplitCodeLines(const std::wstring& code) {
@@ -138,6 +144,9 @@ Json MockIdeBackend::Status() {
     status.Set("activeProject", MakeString(activeProject_));
     status.Set("projectCount", MakeNumber((double)projects_.size()));
     status.Set("configPath", Json::StringValue(config_.configPath));
+    status.Set("toolGroups", GetToolGroups());
+    status.Set("recommendedWorkflow", GetRecommendedWorkflow());
+    status.Set("aiGuide", MakeString("Read vb6://guide/ai-quickstart. Use project_scaffold for new apps and project_inspect/code_search for existing apps."));
     return status;
 }
 
@@ -273,6 +282,9 @@ ToolResult MockIdeBackend::Dispatch(const std::string& name, const Json& args) {
     if (name == "project_list") return ProjectListTool();
     if (name == "project_get") return ProjectGetTool(args);
     if (name == "project_create") return ProjectCreateTool(args);
+    if (name == "project_scaffold") return ProjectScaffoldTool(args);
+    if (name == "project_inspect") return ProjectInspectTool(args);
+    if (name == "project_validate") return ProjectValidateTool(args);
     if (name == "project_open") return ProjectOpenTool(args);
     if (name == "project_close") return ProjectCloseTool(args);
     if (name == "project_save") return ProjectSaveTool(args);
@@ -319,6 +331,7 @@ ToolResult MockIdeBackend::Dispatch(const std::string& name, const Json& args) {
     if (name == "code_get_lines") return CodeGetLinesTool(args);
     if (name == "code_lines_edit") return CodeLinesEditTool(args);
     if (name == "code_find") return CodeFindTool(args);
+    if (name == "code_search") return CodeSearchTool(args);
     if (name == "code_create_event") return CodeCreateEventTool(args);
     if (name == "code_structure") return CodeStructureTool(args);
     if (name == "code_panes_list") return CodePanesListTool(args);
@@ -353,6 +366,7 @@ ToolResult MockIdeBackend::Dispatch(const std::string& name, const Json& args) {
     if (name == "source_write") return SourceWriteTool(args);
     if (name == "source_edit") return SourceEditTool(args);
     if (name == "source_list") return SourceListTool(args);
+    if (name == "vb6_batch") return Vb6BatchTool(args);
     return ToolResult::Failure("Unsupported mock tool: " + name, "not_implemented");
 }
 
@@ -375,6 +389,130 @@ ToolResult MockIdeBackend::ProjectGetTool(const Json& args) {
     Project* project = FindProject(S(args, "project"));
     if (!project) return ToolResult::Failure("Project not found.", "project_not_found");
     return ToolResult::Success(DescribeProject(*project, true, B(args, "includeCode", false)));
+}
+
+ToolResult MockIdeBackend::ProjectInspectTool(const Json& args) {
+    Project* project = FindProject(S(args, "project"));
+    if (!project) return ToolResult::Failure("Project not found.", "project_not_found");
+    Json result = DescribeProject(*project, true, false);
+    bool includeMembers = B(args, "includeMembers", true);
+    bool includeControls = B(args, "includeControls", true);
+    long memberCount = 0;
+    long controlCount = 0;
+    Json components = result.Get("components");
+    for (size_t i = 0; i < components.size(); ++i) {
+        Json& component = components.at(i);
+        std::string componentName = component.Get("name").AsString();
+        Component* source = FindComponent(project, componentName);
+        if (!source) continue;
+        if (includeMembers) {
+            Json members = Json::ArrayValue();
+            std::vector<std::wstring> lines = SplitCodeLines(source->code);
+            for (size_t lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+                std::wstring trimmed = Trim(lines[lineIndex]);
+                bool isMember = StartsWithNoCase(trimmed, L"Public Sub ") ||
+                                StartsWithNoCase(trimmed, L"Private Sub ") ||
+                                StartsWithNoCase(trimmed, L"Friend Sub ") ||
+                                StartsWithNoCase(trimmed, L"Public Function ") ||
+                                StartsWithNoCase(trimmed, L"Private Function ") ||
+                                StartsWithNoCase(trimmed, L"Public Property ") ||
+                                StartsWithNoCase(trimmed, L"Private Property ");
+                if (!isMember) continue;
+                size_t open = trimmed.find(L'(');
+                size_t space = trimmed.find_last_of(L' ', open == std::wstring::npos ? trimmed.size() : open);
+                if (space == std::wstring::npos) continue;
+                size_t end = open == std::wstring::npos ? trimmed.size() : open;
+                Json member = Json::ObjectValue();
+                member.Set("name", Json::StringValue(trimmed.substr(space + 1, end - space - 1)));
+                member.Set("line", MakeNumber((double)(lineIndex + 1)));
+                members.push_back(member);
+                ++memberCount;
+            }
+            component.Set("members", members);
+        }
+        if (includeControls && (source->kind == "form" || source->kind == "usercontrol" ||
+                                source->kind == "propertypage")) {
+            std::vector<FormControlInfo> controls;
+            std::wstring error;
+            if (ListFormControls(source->fileText, controls, error)) {
+                Json list = Json::ArrayValue();
+                for (size_t c = 0; c < controls.size(); ++c) {
+                    Json control = Json::ObjectValue();
+                    control.Set("type", MakeString(controls[c].type));
+                    control.Set("name", MakeString(controls[c].name));
+                    control.Set("line", MakeNumber((double)controls[c].line));
+                    if (controls[c].hasIndex) control.Set("index", MakeNumber((double)controls[c].index));
+                    list.push_back(control);
+                    ++controlCount;
+                }
+                component.Set("controls", list);
+            } else {
+                Json controlError = Json::ObjectValue();
+                controlError.Set("error", Json::StringValue(error));
+                component.Set("controlError", controlError);
+            }
+        }
+    }
+    result.Set("components", components);
+    result.Set("memberCount", MakeNumber((double)memberCount));
+    result.Set("controlCount", MakeNumber((double)controlCount));
+    return ToolResult::Success(result);
+}
+
+ToolResult MockIdeBackend::ProjectValidateTool(const Json& args) {
+    Project* project = FindProject(S(args, "project"));
+    if (!project) return ToolResult::Failure("Project not found.", "project_not_found");
+    ProjectVbpInfo info;
+    std::wstring error;
+    if (!ParseVbpFile(project->vbpPath, info, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "vbp_parse_error");
+    }
+    Json diagnostics = Json::ArrayValue();
+    int errors = 0;
+    int warnings = 0;
+    for (size_t i = 0; i < info.componentEntries.size(); ++i) {
+        std::wstring path = Utf8ToWide(info.componentEntries[i]);
+        if (!IsAbsolutePath(path)) path = PathJoin(PathDirectory(project->vbpPath), path);
+        if (!FileExists(path)) {
+            Json diag = Json::ObjectValue();
+            diag.Set("severity", MakeString("error"));
+            diag.Set("code", MakeString("missing_component_file"));
+            diag.Set("path", Json::StringValue(path));
+            diagnostics.push_back(diag);
+            ++errors;
+        }
+    }
+    bool startupResolved = info.startup.empty();
+    if (!info.startup.empty()) {
+        for (std::map<std::string, Component>::iterator it = project->components.begin();
+             it != project->components.end(); ++it) {
+            if (IEquals(it->first, info.startup) ||
+                (IEquals(info.startup, "Sub Main") &&
+                 it->second.code.find(L"Sub Main") != std::wstring::npos)) {
+                startupResolved = true;
+                break;
+            }
+        }
+    }
+    if (!startupResolved) {
+        Json diag = Json::ObjectValue();
+        diag.Set("severity", MakeString("error"));
+        diag.Set("code", MakeString("startup_not_found"));
+        diag.Set("message", MakeString("The configured startup object was not found."));
+        diagnostics.push_back(diag);
+        ++errors;
+    }
+    Json result = Json::ObjectValue();
+    result.Set("valid", MakeBool(errors == 0 && (!B(args, "strict", false) || warnings == 0)));
+    result.Set("projectType", MakeString(info.type));
+    result.Set("vbpPath", Json::StringValue(project->vbpPath));
+    result.Set("componentCount", MakeNumber((double)info.componentEntries.size()));
+    result.Set("startup", MakeString(info.startup));
+    result.Set("errorCount", MakeNumber((double)errors));
+    result.Set("warningCount", MakeNumber((double)warnings));
+    result.Set("infoCount", MakeNumber(0));
+    result.Set("diagnostics", diagnostics);
+    return ToolResult::Success(result);
 }
 
 ToolResult MockIdeBackend::ProjectCreateTool(const Json& args) {
@@ -413,6 +551,159 @@ ToolResult MockIdeBackend::ProjectCreateTool(const Json& args) {
     result.Set("filesCreated", created);
     Project* project = FindProject(name);
     if (project && B(args, "open", true)) result.Set("project", DescribeProject(*project, true, false));
+    return ToolResult::Success(result);
+}
+
+ToolResult MockIdeBackend::ProjectScaffoldTool(const Json& args) {
+    std::wstring directory = Utf8ToWide(S(args, "directory"));
+    std::wstring vbp = Utf8ToWide(S(args, "vbpPath"));
+    std::string name = S(args, "name");
+    if (directory.empty() && !vbp.empty()) directory = PathDirectory(GetFullPath(vbp));
+    if (vbp.empty() && !directory.empty()) {
+        if (name.empty()) name = "Project1";
+        vbp = PathJoin(GetFullPath(directory), Utf8ToWide(name) + L".vbp");
+    }
+    if (directory.empty() || vbp.empty()) {
+        return ToolResult::Failure("directory or vbpPath is required.", "invalid_arguments");
+    }
+    if (name.empty()) name = WideToUtf8(PathStem(vbp));
+    ProjectKind kind = ProjectKind::StandardExe;
+    if (!ProjectKindFromString(S(args, "type", "standard_exe"), kind)) {
+        return ToolResult::Failure("Unknown project type.", "invalid_arguments");
+    }
+
+    ProjectTemplateSpec spec;
+    spec.name = name;
+    spec.title = S(args, "title", name);
+    spec.description = S(args, "description");
+    spec.company = S(args, "company");
+    spec.product = S(args, "product");
+    spec.directory = GetFullPath(directory);
+    spec.vbpPath = GetFullPath(vbp);
+    spec.startup = S(args, "startup");
+    spec.kind = kind;
+    spec.overwrite = B(args, "overwrite", false);
+    spec.createDefaultStartup = B(args, "startupModule", true);
+
+    const Json& specs = args.Get("components");
+    std::set<std::string> names;
+    std::set<std::string> files;
+    Json describedComponents = Json::ArrayValue();
+    if (specs.IsArray() && !specs.array().empty()) {
+        for (size_t i = 0; i < specs.array().size(); ++i) {
+            const Json& item = specs.at(i);
+            ProjectComponentSpec component;
+            component.kind = S(item, "kind");
+            component.name = S(item, "name");
+            component.fileName = S(item, "fileName");
+            if (!IsValidVbIdentifier(component.name)) {
+                return ToolResult::Failure("Invalid component name.", "invalid_arguments");
+            }
+            if (!names.insert(ToLowerAscii(component.name)).second) {
+                return ToolResult::Failure("Duplicate component name.", "invalid_arguments");
+            }
+            std::wstring extension;
+            std::wstring source = W(item, "source");
+            if (source.empty()) {
+                std::wstring error;
+                if (!CreateComponentSource(component.kind, component.name, S(item, "title", component.name),
+                                           L"ansi", source, extension, error)) {
+                    return ToolResult::Failure(WideToUtf8(error), "invalid_arguments");
+                }
+            } else {
+                std::wstring error;
+                std::wstring ignored;
+                CreateComponentSource(component.kind, component.name, component.name,
+                                      L"ansi", ignored, extension, error);
+            }
+            if (component.fileName.empty()) component.fileName = component.name;
+            if (PathExtension(Utf8ToWide(component.fileName)).empty()) {
+                std::wstring fileName = Utf8ToWide(component.fileName);
+                std::wstring withExtension = PathStem(fileName) + extension;
+                std::wstring parent = PathDirectory(fileName);
+                component.fileName = parent.empty() ? WideToUtf8(withExtension)
+                                                    : WideToUtf8(PathJoin(parent, withExtension));
+            }
+            std::string full = ToLowerAscii(WideToUtf8(GetFullPath(
+                PathJoin(spec.directory, Utf8ToWide(component.fileName)))));
+            if (!files.insert(full).second) {
+                return ToolResult::Failure("Duplicate component file.", "invalid_arguments");
+            }
+            const Json& controls = item.Get("controls");
+            if (controls.IsArray() && !controls.array().empty()) {
+                for (size_t c = 0; c < controls.array().size(); ++c) {
+                    const Json& control = controls.at(c);
+                    std::vector<std::pair<std::string, Json> > properties;
+                    const Json& props = control.Get("properties");
+                    if (props.IsObject()) {
+                        for (std::map<std::string, Json>::const_iterator it = props.object().begin();
+                             it != props.object().end(); ++it) {
+                            properties.push_back(std::make_pair(it->first, it->second));
+                        }
+                    }
+                    std::wstring error;
+                    if (!AddFormControl(source, S(control, "type"), S(control, "name"),
+                                        S(control, "container"), properties,
+                                        control.Get("index"), error)) {
+                        return ToolResult::Failure(WideToUtf8(error), "invalid_arguments");
+                    }
+                }
+            }
+            std::string code = S(item, "code");
+            if (!code.empty()) {
+                source = NormalizeNewlines(source);
+                source += L"\r\n" + NormalizeNewlines(Utf8ToWide(code)) + L"\r\n";
+            }
+            component.source = source;
+            component.sourceProvided = true;
+            spec.components.push_back(component);
+            Json described = Json::ObjectValue();
+            described.Set("kind", MakeString(component.kind));
+            described.Set("name", MakeString(component.name));
+            described.Set("fileName", MakeString(component.fileName));
+            describedComponents.push_back(described);
+        }
+    }
+
+    std::vector<std::wstring> created;
+    std::wstring error;
+    if (!CreateProjectFromTemplate(spec, created, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "project_scaffold_failed");
+    }
+    LoadProjectFromFiles(spec.vbpPath);
+    Project* project = FindProject(name);
+    if (!project) return ToolResult::Failure("Could not load scaffolded project.", "vbp_parse_error");
+    project->references.clear();
+    const Json& references = args.Get("references");
+    if (references.IsArray()) {
+        for (size_t i = 0; i < references.array().size(); ++i) {
+            std::string ref = S(references.at(i), "path", S(references.at(i), "guid"));
+            project->references.push_back(ref);
+        }
+    }
+
+    Json result = Json::ObjectValue();
+    result.Set("success", MakeBool(true));
+    result.Set("vbpPath", Json::StringValue(spec.vbpPath));
+    Json fileList = Json::ArrayValue();
+    for (size_t i = 0; i < created.size(); ++i) fileList.push_back(Json::StringValue(created[i]));
+    result.Set("filesCreated", fileList);
+    result.Set("projectType", MakeString(ProjectKindToString(kind)));
+    result.Set("components", describedComponents);
+    result.Set("warnings", Json::ArrayValue());
+    result.Set("requiresReload", MakeBool(false));
+    result.Set("project", DescribeProject(*project, true, false));
+    if (B(args, "build", false)) {
+        Json buildArgs = Json::ObjectValue();
+        buildArgs.Set("project", Json::StringValue(name));
+        ToolResult build = ProjectBuildTool(buildArgs);
+        result.Set("build", build.data);
+        if (!build.ok) {
+            ToolResult failure = ToolResult::Failure("Scaffold build failed.", "build_failed");
+            failure.data = result;
+            return failure;
+        }
+    }
     return ToolResult::Success(result);
 }
 
@@ -958,6 +1249,67 @@ ToolResult MockIdeBackend::CodeFindTool(const Json& args) {
     return ToolResult::Success(result);
 }
 
+ToolResult MockIdeBackend::CodeSearchTool(const Json& args) {
+    Project* project = FindProject(S(args, "project"));
+    if (!project) return ToolResult::Failure("Project not found.", "project_not_found");
+    std::wstring query = W(args, "query");
+    if (query.empty()) return ToolResult::Failure("query is required.", "invalid_arguments");
+    bool matchCase = B(args, "matchCase", false);
+    bool wholeWord = B(args, "wholeWord", false);
+    int maxResults = I(args, "maxResults", 200);
+    if (maxResults < 1) maxResults = 1;
+    if (maxResults > 1000) maxResults = 1000;
+    std::string componentFilter = S(args, "component");
+    std::wstring needle = matchCase ? query : ToLower(query);
+    Json matches = Json::ArrayValue();
+    bool truncated = false;
+    int searched = 0;
+    auto isWord = [](wchar_t ch) {
+        return (ch >= L'A' && ch <= L'Z') || (ch >= L'a' && ch <= L'z') ||
+               (ch >= L'0' && ch <= L'9') || ch == L'_';
+    };
+    for (std::map<std::string, Component>::iterator it = project->components.begin();
+         it != project->components.end() && !truncated; ++it) {
+        if (!componentFilter.empty() && !IEquals(it->first, componentFilter)) continue;
+        ++searched;
+        std::vector<std::wstring> lines = SplitCodeLines(it->second.code);
+        for (size_t lineIndex = 0; lineIndex < lines.size() && !truncated; ++lineIndex) {
+            std::wstring haystack = matchCase ? lines[lineIndex] : ToLower(lines[lineIndex]);
+            size_t offset = 0;
+            while (offset <= haystack.size()) {
+                size_t hit = haystack.find(needle, offset);
+                if (hit == std::wstring::npos) break;
+                bool ok = true;
+                if (wholeWord) {
+                    if (hit > 0 && isWord(lines[lineIndex][hit - 1])) ok = false;
+                    size_t after = hit + query.size();
+                    if (after < lines[lineIndex].size() && isWord(lines[lineIndex][after])) ok = false;
+                }
+                if (ok) {
+                    Json match = Json::ObjectValue();
+                    match.Set("component", MakeString(it->first));
+                    match.Set("componentType", MakeString(it->second.kind));
+                    match.Set("line", MakeNumber((double)(lineIndex + 1)));
+                    match.Set("column", MakeNumber((double)(hit + 1)));
+                    match.Set("text", Json::StringValue(lines[lineIndex]));
+                    matches.push_back(match);
+                    if ((int)matches.size() >= maxResults) {
+                        truncated = true;
+                        break;
+                    }
+                }
+                offset = hit + (query.empty() ? 1 : query.size());
+            }
+        }
+    }
+    Json result = Json::ObjectValue();
+    result.Set("count", MakeNumber((double)matches.size()));
+    result.Set("searchedComponents", MakeNumber((double)searched));
+    result.Set("truncated", MakeBool(truncated));
+    result.Set("matches", matches);
+    return ToolResult::Success(result);
+}
+
 ToolResult MockIdeBackend::CodeCreateEventTool(const Json& args) {
     Project* project = FindProject(S(args, "project"));
     if (!project) return ToolResult::Failure("Project not found.", "project_not_found");
@@ -1369,6 +1721,73 @@ ToolResult MockIdeBackend::ReferenceRemoveTool(const Json& args) {
         }
     }
     return ToolResult::Failure("Reference not found.", "reference_not_found");
+}
+
+ToolResult MockIdeBackend::Vb6BatchTool(const Json& args) {
+    const Json& calls = args.Get("calls");
+    if (!calls.IsArray() || calls.array().empty()) {
+        return ToolResult::Failure("calls array is required.", "invalid_arguments");
+    }
+    int maxCalls = I(args, "maxCalls", 50);
+    if (maxCalls < 1) maxCalls = 1;
+    if (maxCalls > 200) maxCalls = 200;
+    bool stopOnError = B(args, "stopOnError", true);
+    Json results = Json::ArrayValue();
+    int successCount = 0;
+    int errorCount = 0;
+    bool stoppedEarly = false;
+    for (size_t i = 0; i < calls.array().size(); ++i) {
+        if ((int)i >= maxCalls) {
+            stoppedEarly = true;
+            break;
+        }
+        const Json& call = calls.at(i);
+        Json item = Json::ObjectValue();
+        item.Set("index", MakeNumber((double)(i + 1)));
+        std::string toolName = S(call, "tool");
+        item.Set("tool", MakeString(toolName));
+        if (toolName.empty() || toolName == "vb6_batch" || !IsKnownTool(toolName)) {
+            item.Set("ok", MakeBool(false));
+            item.Set("code", MakeString("invalid_tool"));
+            results.push_back(item);
+            ++errorCount;
+            if (stopOnError) {
+                stoppedEarly = true;
+                break;
+            }
+            continue;
+        }
+        Json callArgs = call.Get("arguments");
+        if (!callArgs.IsObject()) callArgs = Json::ObjectValue();
+        ToolResult one = Dispatch(toolName, callArgs);
+        item.Set("ok", MakeBool(one.ok));
+        item.Set("result", one.data);
+        if (one.ok) {
+            ++successCount;
+        } else {
+            item.Set("code", MakeString(one.errorCode));
+            ++errorCount;
+        }
+        results.push_back(item);
+        if (!one.ok && stopOnError) {
+            stoppedEarly = true;
+            break;
+        }
+    }
+    Json result = Json::ObjectValue();
+    result.Set("success", MakeBool(errorCount == 0));
+    result.Set("requestedCalls", MakeNumber((double)calls.size()));
+    result.Set("executedCalls", MakeNumber((double)results.size()));
+    result.Set("successCount", MakeNumber((double)successCount));
+    result.Set("errorCount", MakeNumber((double)errorCount));
+    result.Set("stoppedEarly", MakeBool(stoppedEarly));
+    result.Set("results", results);
+    if (errorCount > 0) {
+        ToolResult failure = ToolResult::Failure("Batch failed.", "batch_failed");
+        failure.data = result;
+        return failure;
+    }
+    return ToolResult::Success(result);
 }
 
 } // namespace mcpaddin

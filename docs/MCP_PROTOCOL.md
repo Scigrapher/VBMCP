@@ -31,15 +31,56 @@ version falls back to `2025-06-18`.
 - `ping`
 - `tools/list`
 - `tools/call`
-- `resources/list` (empty)
+- `resources/list`
+- `resources/read`
 - `resources/templates/list` (empty)
-- `prompts/list` (empty)
+- `prompts/list`
+- `prompts/get`
 - `logging/setLevel` (acknowledged)
 
 Unknown methods return JSON-RPC `-32601`. Protocol errors use standard
 JSON-RPC codes. Failed tool execution returns a successful JSON-RPC response
 with `isError: true`, a text content item, and structured content containing
 `error` and `code`.
+
+## MCP resources
+
+`initialize` advertises the `resources` capability. The server exposes
+read-only Markdown resources:
+
+| URI | Purpose |
+|---|---|
+| `vb6://guide/ai-quickstart` | Workflow, selectors, and VB6 compatibility rules |
+| `vb6://guide/build-complete-app` | Complete `project_scaffold` manifest and build flow |
+| `vb6://guide/designer-compatibility` | CodeModule vs designer text, reloads, and FRX files |
+| `vb6://reference/tool-groups` | Tool families and recommended workflow metadata |
+
+`resources/read` returns:
+
+```json
+{
+  "contents": [
+    {
+      "uri": "vb6://guide/ai-quickstart",
+      "mimeType": "text/markdown",
+      "text": "..."
+    }
+  ]
+}
+```
+
+## MCP prompts
+
+`initialize` advertises the `prompts` capability. The server exposes:
+
+- `create-vb6-app`
+- `inspect-and-extend-vb6-app`
+- `fix-vb6-build`
+- `create-vb6-form`
+
+`prompts/get` returns a user-role message containing the selected workflow and
+the caller's optional arguments. Prompts are guidance only; they do not execute
+tools.
 
 ## VB6 form/designer compatibility
 

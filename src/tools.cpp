@@ -72,6 +72,14 @@ Json SchemaArrayOfStrings(const std::string& description) {
     return schema;
 }
 
+Json SchemaArrayOfObjects(const std::string& description, const Json& itemSchema) {
+    Json schema = Json::ObjectValue();
+    schema.Set("type", MakeString("array"));
+    schema.Set("description", MakeString(description));
+    schema.Set("items", itemSchema);
+    return schema;
+}
+
 Json SchemaObject(const std::map<std::string, Json>& properties,
                   const std::vector<std::string>& required) {
     Json schema = Json::ObjectValue();
@@ -138,11 +146,60 @@ static std::vector<std::string> R(const char* a = NULL, const char* b = NULL,
     return result;
 }
 
+static Json ControlSpecSchema() {
+    std::map<std::string, Json> p = P();
+    Add(p, "type", SchemaString("Control type or ProgID, such as VB.CommandButton, textbox, label, frame, or MSComDlg.CommonDialog."));
+    Add(p, "name", SchemaString("Unique VB6 control name."));
+    Add(p, "container", SchemaString("Optional parent control name for nested controls."));
+    Add(p, "index", SchemaInteger("Optional control-array index.", MakeNumber(0)));
+    Add(p, "properties", SchemaObjectMap("Designer properties. Numbers and booleans are emitted unquoted; strings are quoted."));
+    return SchemaObject(p, R("type", "name"));
+}
+
+static Json ComponentSpecSchema() {
+    std::map<std::string, Json> p = P();
+    Add(p, "kind", SchemaString("Component kind.", {"form", "class", "module", "usercontrol", "propertypage"}));
+    Add(p, "name", SchemaString("Unique VB6 component name."));
+    Add(p, "fileName", SchemaString("Optional component file name, relative to the project directory."));
+    Add(p, "title", SchemaString("Optional form caption when source is omitted."));
+    Add(p, "source", SchemaString("Optional complete component source text. When omitted, a valid VB6 skeleton is generated."));
+    Add(p, "code", SchemaString("Code appended after the generated/source component header. Use VB6 source syntax."));
+    Add(p, "controls", SchemaArrayOfObjects("Optional controls to add to a form after its source is generated. Applied in order.",
+                                            ControlSpecSchema()));
+    return SchemaObject(p, R("kind", "name"));
+}
+
+static Json ReferenceSpecSchema() {
+    std::map<std::string, Json> p = P();
+    Add(p, "path", SchemaString("Type-library or ActiveX file path."));
+    Add(p, "guid", SchemaString("Type-library GUID, when adding by registered GUID."));
+    Add(p, "major", SchemaInteger("Type-library major version.", MakeNumber(0)));
+    Add(p, "minor", SchemaInteger("Type-library minor version.", MakeNumber(0)));
+    return SchemaObject(p, std::vector<std::string>());
+}
+
 Json GetToolDefinitions() {
     Json tools = Json::ArrayValue();
 
+    {
+        std::map<std::string, Json> p = P();
+        Add(p, "calls", SchemaArrayOfObjects(
+                "Sequential tool calls. Each item is {\"tool\":\"tool_name\",\"arguments\":{...}}.",
+                [] {
+                    std::map<std::string, Json> item = P();
+                    Add(item, "tool", SchemaString("Registered MCP tool name. vb6_batch cannot call itself."));
+                    Add(item, "arguments", SchemaObjectMap("Arguments object passed to that tool."));
+                    return SchemaObject(item, R("tool"));
+                }()));
+        Add(p, "stopOnError", SchemaBoolean("Stop after the first failed call. Default true."));
+        Add(p, "maxCalls", SchemaInteger("Maximum calls to execute, 1-200. Default 50.",
+                                         MakeNumber(1), MakeNumber(200)));
+        tools.push_back(Tool("vb6_batch", "Batch VB6 operations",
+            "Run several MCP tool calls sequentially in one request. Use for multi-control form builds, edit/read verification loops, and multi-component code generation. Calls run in order on the VB6 UI thread; there is no transaction rollback.",
+            SchemaObject(p, R("calls")), R("write", "orchestration")));
+    }
     tools.push_back(Tool("ide_status", "IDE status",
-        "Return VB6 IDE state, active project/component/code pane/window, add-in discovery, server endpoints, configuration location, and capabilities.",
+        "Return VB6 IDE state, active project/component/code pane/window, add-in discovery, server endpoints, configuration location, tool groups, and the recommended AI workflow. Call this first in a new session.",
         EmptySchema(), R("read")));
     tools.push_back(Tool("project_list", "List projects",
         "List all projects currently open in the VB6 IDE, including paths, component counts, and saved state.",
@@ -153,6 +210,55 @@ Json GetToolDefinitions() {
         tools.push_back(Tool("project_get", "Get project",
             "Return detailed information about one open project, its components, and references.",
             SchemaObject(p, std::vector<std::string>()), R("read")));
+    }
+    {
+        std::map<std::string, Json> p = P();
+        Add(p, "project", SchemaString("Project name, VBP path, or index. Defaults to active project."));
+        Add(p, "includeMembers", SchemaBoolean("Include code member/procedure summaries. Default true."));
+        Add(p, "includeControls", SchemaBoolean("Include parsed form controls for designer components. Default true."));
+        tools.push_back(Tool("project_inspect", "Inspect project",
+            "Return a project-wide map for AI comprehension: component kinds, file names, code member summaries, form controls, references, and build settings. Prefer this over dumping every component's full code.",
+            SchemaObject(p, std::vector<std::string>()), R("read", "project", "code", "designer")));
+    }
+    {
+        std::map<std::string, Json> p = P();
+        Add(p, "project", SchemaString("Project name, VBP path, or index. Defaults to active project."));
+        Add(p, "strict", SchemaBoolean("Treat warnings as validation failures. Default false."));
+        Add(p, "checkReferences", SchemaBoolean("Check for broken references. Default true."));
+        tools.push_back(Tool("project_validate", "Validate project",
+            "Check project-file structure, component files, VB_Name attributes, Option Explicit, form designer syntax, duplicate controls, startup resolution, and broken references. This is a fast structural check; use project_build with commandline for compiler errors.",
+            SchemaObject(p, std::vector<std::string>()), R("read", "project", "validation")));
+    }
+    {
+        std::map<std::string, Json> p = P();
+        Add(p, "directory", SchemaString("Directory in which to create the project. Use this or vbpPath."));
+        Add(p, "vbpPath", SchemaString("Exact .vbp path to create. Use this or directory."));
+        Add(p, "name", SchemaString("VB6 project name. Defaults to the file stem."));
+        Add(p, "title", SchemaString("Display title and version description."));
+        Add(p, "description", SchemaString("Project description."));
+        Add(p, "company", SchemaString("Version company name."));
+        Add(p, "product", SchemaString("Version product name."));
+        Add(p, "type", SchemaString("Project kind.", {"standard_exe", "activex_exe", "activex_dll", "activex_control"}));
+        Add(p, "overwrite", SchemaBoolean("Overwrite existing project and component files. Default false."));
+        Add(p, "open", SchemaBoolean("Open the generated project in the running VB6 IDE. Default true."));
+        Add(p, "startup", SchemaString("Startup object: a form name or the literal Sub Main. Defaults to Sub Main when a generated startup module exists."));
+        Add(p, "startupModule", SchemaBoolean("When components is omitted, create Module1 with Sub Main for standard EXE projects. Default true."));
+        Add(p, "components", SchemaArrayOfObjects(
+                "Complete component manifest. Each item is a module, class, form, user control, or property page. Form controls may be supplied inline.",
+                ComponentSpecSchema()));
+        Add(p, "references", SchemaArrayOfObjects(
+                "References to add after the project is opened. Requires open=true.",
+                ReferenceSpecSchema()));
+        Add(p, "toolboxProgIds", SchemaArrayOfStrings(
+                "Optional ActiveX ProgIDs to register in the VB6 toolbox after opening."));
+        Add(p, "build", SchemaBoolean("Build after creation. Default false; command-line build is recommended for unattended work."));
+        Add(p, "buildMethod", SchemaString("Build method when build=true.", {"ide", "commandline"}));
+        Add(p, "buildOutputPath", SchemaString("Optional build output path when build=true."));
+        Add(p, "buildTimeoutSeconds", SchemaInteger("Build timeout when build=true.",
+                                                   MakeNumber(5), MakeNumber(3600)));
+        tools.push_back(Tool("project_scaffold", "Scaffold complete app",
+            "PREFERRED bootstrap for new VB6 applications. Create a complete on-disk project from a declarative component manifest, add form controls and references, open it in the IDE, and optionally build it in one call. Use project_create only for a minimal empty project.",
+            SchemaObject(p, std::vector<std::string>()), R("write", "project", "component", "orchestration")));
     }
     {
         std::map<std::string, Json> p = P();
@@ -387,6 +493,19 @@ Json GetToolDefinitions() {
         tools.push_back(Tool("code_find", "Find code",
             "Search a component with CodeModule.Find and return the matched start/end positions.",
             SchemaObject(p, R("component", "target")), R("read", "component")));
+    }
+    {
+        std::map<std::string, Json> p = P();
+        Add(p, "project", SchemaString("Project name, VBP path, or index. Defaults to active project."));
+        Add(p, "query", SchemaString("Plain-text search string."));
+        Add(p, "component", SchemaString("Optional component name filter."));
+        Add(p, "matchCase", SchemaBoolean("Use case-sensitive matching. Default false."));
+        Add(p, "wholeWord", SchemaBoolean("Require VB identifier boundaries around each match. Default false."));
+        Add(p, "maxResults", SchemaInteger("Maximum matches to return, 1-1000. Default 200.",
+                                           MakeNumber(1), MakeNumber(1000)));
+        tools.push_back(Tool("code_search", "Search project code",
+            "Search code modules across the whole project and return component, line, column, and preview text. Designer/header text is not searched; use project_inspect or form_list_controls for form metadata.",
+            SchemaObject(p, R("query")), R("read", "code")));
     }
     {
         std::map<std::string, Json> p = P();
@@ -648,6 +767,74 @@ Json GetToolDefinitions() {
             SchemaObject(p, R("directory")), R("read", "filesystem")));
     }
     return tools;
+}
+
+Json GetToolGroups() {
+    Json groups = Json::ObjectValue();
+    auto addGroup = [&groups](const char* name, const std::vector<std::string>& names) {
+        Json values = Json::ArrayValue();
+        for (size_t i = 0; i < names.size(); ++i) values.push_back(MakeString(names[i]));
+        groups.Set(name, values);
+    };
+    addGroup("bootstrap", {
+        "ide_status", "project_scaffold", "project_inspect", "project_validate", "vb6_batch"
+    });
+    addGroup("projects", {
+        "project_list", "project_get", "project_create", "project_open", "project_close",
+        "project_save", "project_set_properties", "project_read_property",
+        "project_write_property", "project_add_toolbox_progid", "project_build",
+        "active_project_set"
+    });
+    addGroup("components", {
+        "project_add_component", "project_add_form", "project_add_file",
+        "project_create_file", "project_remove_component", "component_list",
+        "component_get", "component_get_code", "component_set_code",
+        "component_edit_code", "component_rename", "component_export",
+        "component_replace_file", "component_properties_list",
+        "component_read_property", "component_write_property", "component_action"
+    });
+    addGroup("code", {
+        "code_get_lines", "code_lines_edit", "code_find", "code_search",
+        "code_create_event", "code_structure"
+    });
+    addGroup("forms", {
+        "form_get_text", "form_set_text", "form_list_controls", "form_add_control",
+        "form_remove_control", "form_set_control_property"
+    });
+    addGroup("ide", {
+        "code_panes_list", "code_pane_set", "windows_list", "window_action",
+        "ide_execute_command"
+    });
+    addGroup("references", {
+        "references_list", "reference_add", "reference_remove"
+    });
+    addGroup("files", {
+        "source_read", "source_write", "source_edit", "source_list"
+    });
+    return groups;
+}
+
+Json GetRecommendedWorkflow() {
+    Json workflow = Json::ArrayValue();
+    auto step = [&workflow](int order, const char* title, const char* detail,
+                            const std::vector<std::string>& tools) {
+        Json item = Json::ObjectValue();
+        item.Set("step", MakeNumber(order));
+        item.Set("title", MakeString(title));
+        item.Set("detail", MakeString(detail));
+        Json names = Json::ArrayValue();
+        for (size_t i = 0; i < tools.size(); ++i) names.push_back(MakeString(tools[i]));
+        item.Set("tools", names);
+        workflow.push_back(item);
+    };
+    step(1, "Discover the IDE", "Call ide_status. Confirm the backend, active project, endpoints, and capabilities.", {"ide_status"});
+    step(2, "Understand existing code", "Inspect the project map, then search and read only the code needed for the task.", {"project_list", "project_inspect", "code_search", "component_get_code"});
+    step(3, "Bootstrap new applications", "Create the project and all initial components/forms in one declarative call.", {"project_scaffold"});
+    step(4, "Implement behavior", "Edit code by component, create event procedures, and add form controls. Use vb6_batch for repeated independent edits.", {"component_set_code", "code_lines_edit", "code_create_event", "form_add_control", "vb6_batch"});
+    step(5, "Check structure", "Validate VBP/component files, names, startup, forms, and references before compiling.", {"project_validate"});
+    step(6, "Compile with diagnostics", "Use commandline builds for unattended work so compiler output is captured without a modal IDE dialog.", {"project_build"});
+    step(7, "Verify output", "Check success, outputExists, compilerOutput, and then inspect the final project if more changes are needed.", {"project_build", "project_inspect"});
+    return workflow;
 }
 
 bool IsKnownTool(const std::string& name) {

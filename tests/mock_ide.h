@@ -44,6 +44,9 @@ private:
     ToolResult ProjectListTool();
     ToolResult ProjectGetTool(const Json& args);
     ToolResult ProjectCreateTool(const Json& args);
+    ToolResult ProjectScaffoldTool(const Json& args);
+    ToolResult ProjectInspectTool(const Json& args);
+    ToolResult ProjectValidateTool(const Json& args);
     ToolResult ProjectOpenTool(const Json& args);
     ToolResult ProjectCloseTool(const Json& args);
     ToolResult ProjectSaveTool(const Json& args);
@@ -68,6 +71,7 @@ private:
     ToolResult CodeGetLinesTool(const Json& args);
     ToolResult CodeLinesEditTool(const Json& args);
     ToolResult CodeFindTool(const Json& args);
+    ToolResult CodeSearchTool(const Json& args);
     ToolResult CodeCreateEventTool(const Json& args);
     ToolResult CodeStructureTool(const Json& args);
     ToolResult CodePanesListTool(const Json& args);
@@ -90,6 +94,7 @@ private:
     ToolResult ReferenceListTool(const Json& args);
     ToolResult ReferenceAddTool(const Json& args);
     ToolResult ReferenceRemoveTool(const Json& args);
+    ToolResult Vb6BatchTool(const Json& args);
 
     Project* FindProject(const std::string& selector);
     Component* FindComponent(Project* project, const std::string& selector);

@@ -58,5 +58,8 @@ Json SchemaInteger(const std::string& description,
                    const Json& maximum = Json::NullValue());
 Json SchemaObjectMap(const std::string& description);
 Json SchemaArrayOfStrings(const std::string& description);
+Json SchemaArrayOfObjects(const std::string& description, const Json& itemSchema);
+Json GetToolGroups();
+Json GetRecommendedWorkflow();
 
 } // namespace mcpaddin

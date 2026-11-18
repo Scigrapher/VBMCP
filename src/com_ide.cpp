@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <exception>
+#include <set>
 
 namespace mcpaddin {
 
@@ -652,6 +654,9 @@ ToolResult ComIdeBackend::ExecuteTool(const std::string& name, const Json& args)
     if (name == "project_list") return ProjectList();
     if (name == "project_get") return ProjectGet(args);
     if (name == "project_create") return ProjectCreate(args);
+    if (name == "project_scaffold") return ProjectScaffold(args);
+    if (name == "project_inspect") return ProjectInspect(args);
+    if (name == "project_validate") return ProjectValidate(args);
     if (name == "project_open") return ProjectOpen(args);
     if (name == "project_close") return ProjectClose(args);
     if (name == "project_save") return ProjectSave(args);
@@ -680,6 +685,7 @@ ToolResult ComIdeBackend::ExecuteTool(const std::string& name, const Json& args)
     if (name == "code_get_lines") return CodeGetLines(args);
     if (name == "code_lines_edit") return CodeLinesEdit(args);
     if (name == "code_find") return CodeFind(args);
+    if (name == "code_search") return CodeSearch(args);
     if (name == "code_create_event") return CodeCreateEvent(args);
     if (name == "code_structure") return CodeStructure(args);
     if (name == "code_panes_list") return CodePanesList(args);
@@ -701,6 +707,7 @@ ToolResult ComIdeBackend::ExecuteTool(const std::string& name, const Json& args)
     if (name == "source_write") return SourceWrite(args);
     if (name == "source_edit") return SourceEdit(args);
     if (name == "source_list") return SourceList(args);
+    if (name == "vb6_batch") return Vb6Batch(args);
     return ToolResult::Failure("Tool is not implemented by the IDE backend: " + name, "not_implemented");
 }
 
@@ -1079,6 +1086,10 @@ Json DescribeComponent(ComPtr<IDispatch>& component, bool includeCode) {
     std::wstring name;
     GetBstrProperty(component.get(), L"Name", name);
     info.Set("name", Json::StringValue(name));
+    std::wstring fileName;
+    if (GetBstrProperty(component.get(), L"FileName", fileName)) {
+        info.Set("fileName", Json::StringValue(fileName));
+    }
     long type = 0;
     GetLongProperty(component.get(), L"Type", type);
     info.Set("type", MakeNumber((double)type));
@@ -1495,8 +1506,15 @@ ToolResult ComIdeBackend::IdeStatus() {
     result.Set("logPath", Json::StringValue(config_.logPath));
     result.Set("backend", MakeString(BackendName()));
     result.Set("capabilities", MakeString(
-        "projects, components, code, code-panes, windows, form-designer, build, references, "
-        "commandbars, project-properties, component-properties, source-files"));
+        "app-scaffold, project-inspection, project-validation, project-wide-code-search, "
+        "batch-orchestration, projects, components, code, code-panes, windows, form-designer, "
+        "build, references, commandbars, project-properties, component-properties, source-files"));
+    result.Set("toolGroups", GetToolGroups());
+    result.Set("recommendedWorkflow", GetRecommendedWorkflow());
+    result.Set("aiGuide", MakeString(
+        "Start with resources/read uri=vb6://guide/ai-quickstart. For new apps call "
+        "project_scaffold; for existing apps call project_inspect, code_search, then targeted "
+        "edits. Validate with project_validate and compile with project_build method=commandline."));
     return ToolResult::Success(result);
 }
 
@@ -1592,6 +1610,507 @@ ToolResult ComIdeBackend::ProjectCreate(const Json& args) {
         ComPtr<IDispatch> project(opened.GetDispatch(), true);
         result.Set("project", DescribeProject(project, true, false));
     }
+    return ToolResult::Success(result);
+}
+
+ToolResult ComIdeBackend::ProjectScaffold(const Json& args) {
+    std::wstring directory = Utf8ToWide(ArgString(args, "directory"));
+    std::wstring vbpPath = Utf8ToWide(ArgString(args, "vbpPath"));
+    std::string name = ArgString(args, "name");
+    if (directory.empty() && !vbpPath.empty()) directory = PathDirectory(GetFullPath(vbpPath));
+    if (vbpPath.empty() && !directory.empty()) {
+        if (name.empty()) name = "Project1";
+        vbpPath = PathJoin(GetFullPath(directory), Utf8ToWide(name) + L".vbp");
+    }
+    if (directory.empty() || vbpPath.empty()) {
+        return ToolResult::Failure("project_scaffold requires directory or vbpPath.", "invalid_arguments");
+    }
+    directory = GetFullPath(directory);
+    vbpPath = GetFullPath(vbpPath);
+    if (name.empty()) name = WideToUtf8(PathStem(vbpPath));
+    if (!IsValidVbIdentifier(name)) {
+        return ToolResult::Failure("Project name is not a valid VB6 identifier: " + name,
+                                   "invalid_arguments");
+    }
+
+    ProjectKind kind = ProjectKind::StandardExe;
+    if (!ProjectKindFromString(ArgString(args, "type", "standard_exe"), kind)) {
+        return ToolResult::Failure("Unknown project type. Use standard_exe, activex_exe, activex_dll, or activex_control.",
+                                   "invalid_arguments");
+    }
+
+    ProjectTemplateSpec spec;
+    spec.name = name;
+    spec.title = ArgString(args, "title", name);
+    spec.description = ArgString(args, "description");
+    spec.company = ArgString(args, "company");
+    spec.product = ArgString(args, "product");
+    spec.directory = directory;
+    spec.vbpPath = vbpPath;
+    spec.startup = ArgString(args, "startup");
+    spec.kind = kind;
+    spec.overwrite = ArgBool(args, "overwrite", false);
+    spec.createDefaultStartup = ArgBool(args, "startupModule", true);
+
+    Json componentResults = Json::ArrayValue();
+    Json warnings = Json::ArrayValue();
+    std::set<std::string> componentNames;
+    std::set<std::string> componentFiles;
+    std::wstring error;
+    const Json& componentSpecs = args.Get("components");
+    if (componentSpecs.IsArray() && !componentSpecs.array().empty()) {
+        for (size_t i = 0; i < componentSpecs.array().size(); ++i) {
+            const Json& item = componentSpecs.at(i);
+            if (!item.IsObject()) {
+                return ToolResult::Failure("components[] entries must be objects.", "invalid_arguments");
+            }
+            ProjectComponentSpec component;
+            component.kind = ToLowerAscii(item.Get("kind").AsString());
+            component.name = item.Get("name").AsString();
+            component.fileName = item.Get("fileName").AsString();
+            if (!IEquals(component.kind, "form") && !IEquals(component.kind, "class") &&
+                !IEquals(component.kind, "module") && !IEquals(component.kind, "usercontrol") &&
+                !IEquals(component.kind, "propertypage")) {
+                return ToolResult::Failure("Unsupported scaffold component kind: " + component.kind,
+                                           "invalid_arguments");
+            }
+            if (!IsValidVbIdentifier(component.name)) {
+                return ToolResult::Failure("Component name is not a valid VB6 identifier: " + component.name,
+                                           "invalid_arguments");
+            }
+            std::string lowerName = ToLowerAscii(component.name);
+            if (!componentNames.insert(lowerName).second) {
+                return ToolResult::Failure("Duplicate component name: " + component.name,
+                                           "invalid_arguments");
+            }
+
+            std::wstring extension;
+            std::wstring source = item.Get("source").AsWString();
+            if (source.empty()) {
+                if (!CreateComponentSource(component.kind, component.name,
+                                           item.Get("title").AsString(component.name),
+                                           config_.sourceEncoding, source, extension, error)) {
+                    return ToolResult::Failure(WideToUtf8(error), "invalid_arguments");
+                }
+            } else {
+                std::wstring ignoredSource;
+                if (!CreateComponentSource(component.kind, component.name, component.name,
+                                           config_.sourceEncoding, ignoredSource, extension, error)) {
+                    return ToolResult::Failure(WideToUtf8(error), "invalid_arguments");
+                }
+            }
+            if (component.fileName.empty()) component.fileName = component.name;
+            if (PathExtension(Utf8ToWide(component.fileName)).empty()) {
+                std::wstring fileName = Utf8ToWide(component.fileName);
+                std::wstring fileNameWithExtension = PathStem(fileName) + extension;
+                std::wstring parent = PathDirectory(fileName);
+                component.fileName = parent.empty()
+                    ? WideToUtf8(fileNameWithExtension)
+                    : WideToUtf8(PathJoin(parent, fileNameWithExtension));
+            }
+            std::string lowerFile = ToLowerAscii(WideToUtf8(
+                GetFullPath(PathJoin(directory, Utf8ToWide(component.fileName)))));
+            if (!componentFiles.insert(lowerFile).second) {
+                return ToolResult::Failure("Duplicate component file path: " + component.fileName,
+                                           "invalid_arguments");
+            }
+
+            const Json& controls = item.Get("controls");
+            if (controls.IsArray() && !controls.array().empty()) {
+                if (!IEquals(component.kind, "form")) {
+                    return ToolResult::Failure("Only form components can declare controls.", "invalid_arguments");
+                }
+                source = NormalizeNewlines(source);
+                for (size_t c = 0; c < controls.array().size(); ++c) {
+                    const Json& control = controls.at(c);
+                    if (!control.IsObject()) {
+                        return ToolResult::Failure("controls[] entries must be objects.", "invalid_arguments");
+                    }
+                    std::vector<std::pair<std::string, Json> > properties;
+                    const Json& props = control.Get("properties");
+                    if (props.IsObject()) {
+                        for (std::map<std::string, Json>::const_iterator it = props.object().begin();
+                             it != props.object().end(); ++it) {
+                            properties.push_back(std::make_pair(it->first, it->second));
+                        }
+                    }
+                    if (!AddFormControl(source, control.Get("type").AsString(),
+                                        control.Get("name").AsString(),
+                                        control.Get("container").AsString(),
+                                        properties, control.Get("index"), error)) {
+                        return ToolResult::Failure("Form " + component.name + ": " + WideToUtf8(error),
+                                                   "invalid_arguments");
+                    }
+                }
+            }
+
+            std::string code = item.Get("code").AsString();
+            if (!code.empty()) {
+                source = NormalizeNewlines(source);
+                if (!source.empty() && source[source.size() - 1] != L'\n') source += L"\r\n";
+                source += NormalizeNewlines(Utf8ToWide(code));
+                if (!source.empty() && source[source.size() - 1] != L'\n') source += L"\r\n";
+            }
+
+            component.source = source;
+            component.sourceProvided = true;
+            spec.components.push_back(component);
+
+            Json described = Json::ObjectValue();
+            described.Set("kind", MakeString(component.kind));
+            described.Set("name", MakeString(component.name));
+            described.Set("fileName", MakeString(component.fileName));
+            described.Set("path", Json::StringValue(PathJoin(directory, Utf8ToWide(component.fileName))));
+            if (controls.IsArray()) {
+                described.Set("controlCount", MakeNumber((double)controls.size()));
+            }
+            componentResults.push_back(described);
+        }
+    }
+
+    std::vector<std::wstring> files;
+    if (!CreateProjectFromTemplate(spec, files, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "project_scaffold_failed");
+    }
+
+    Json result = Json::ObjectValue();
+    result.Set("success", MakeBool(true));
+    result.Set("vbpPath", Json::StringValue(vbpPath));
+    result.Set("filesCreated", StringArrayToJson(files));
+    result.Set("projectType", MakeString(ProjectKindToString(kind)));
+    result.Set("components", componentResults);
+    result.Set("warnings", warnings);
+    result.Set("requiresReload", MakeBool(false));
+
+    bool open = ArgBool(args, "open", true);
+    if (open) {
+        Variant pathArg;
+        MakeBstr(pathArg, vbpPath);
+        std::vector<Variant*> openArgs;
+        openArgs.push_back(&pathArg);
+        Variant opened;
+        HRESULT hr = InvokeMethod(GetProjectsCollection(vbe_.get()).get(), L"Open", openArgs, opened);
+        if (FAILED(hr)) {
+            result.Set("success", MakeBool(false));
+            ToolResult failure = ToolResult::Failure(
+                "Project files were scaffolded, but opening the project failed: " +
+                WideToUtf8(HResultMessage(hr)), "project_open_failed");
+            failure.data = result;
+            return failure;
+        }
+        ComPtr<IDispatch> project(opened.GetDispatch(), true);
+        result.Set("project", DescribeProject(project, true, false));
+
+        Json referenceResults = Json::ArrayValue();
+        const Json& references = args.Get("references");
+        if (references.IsArray()) {
+            for (size_t i = 0; i < references.array().size(); ++i) {
+                const Json& reference = references.at(i);
+                if (!reference.IsObject()) {
+                    return ToolResult::Failure("references[] entries must be objects.", "invalid_arguments");
+                }
+                Json refArgs = Json::ObjectValue();
+                refArgs.Set("project", Json::StringValue(name));
+                if (reference.Has("path")) refArgs.Set("path", reference.Get("path"));
+                if (reference.Has("guid")) refArgs.Set("guid", reference.Get("guid"));
+                if (reference.Has("major")) refArgs.Set("major", reference.Get("major"));
+                if (reference.Has("minor")) refArgs.Set("minor", reference.Get("minor"));
+                ToolResult added = ReferenceAdd(refArgs);
+                Json item = Json::ObjectValue();
+                item.Set("index", MakeNumber((double)(i + 1)));
+                item.Set("ok", MakeBool(added.ok));
+                item.Set("result", added.data);
+                referenceResults.push_back(item);
+                if (!added.ok) {
+                    result.Set("success", MakeBool(false));
+                    result.Set("references", referenceResults);
+                    ToolResult failure = ToolResult::Failure(
+                        "Project was scaffolded, but one or more references could not be added.",
+                        "reference_add_failed");
+                    failure.data = result;
+                    return failure;
+                }
+            }
+        }
+        if (!referenceResults.empty()) result.Set("references", referenceResults);
+
+        const Json& toolbox = args.Get("toolboxProgIds");
+        if (toolbox.IsArray() && !toolbox.array().empty()) {
+            Json toolboxResults = Json::ArrayValue();
+            for (size_t i = 0; i < toolbox.array().size(); ++i) {
+                Json toolbarArgs = Json::ObjectValue();
+                toolbarArgs.Set("project", Json::StringValue(name));
+                toolbarArgs.Set("progId", toolbox.at(i));
+                ToolResult added = ProjectAddToolboxProgId(toolbarArgs);
+                Json item = Json::ObjectValue();
+                item.Set("progId", toolbox.at(i));
+                item.Set("ok", MakeBool(added.ok));
+                item.Set("result", added.data);
+                toolboxResults.push_back(item);
+                if (!added.ok) warnings.push_back(MakeString("Failed to register toolbox ProgID " +
+                                                             toolbox.at(i).AsString()));
+            }
+            result.Set("toolboxProgIds", toolboxResults);
+        }
+
+        if (ArgBool(args, "build", false)) {
+            Json buildArgs = Json::ObjectValue();
+            buildArgs.Set("project", Json::StringValue(name));
+            buildArgs.Set("method", MakeString(ArgString(args, "buildMethod", "commandline")));
+            if (!ArgString(args, "buildOutputPath").empty()) {
+                buildArgs.Set("outputPath", Json::StringValue(ArgString(args, "buildOutputPath")));
+            }
+            buildArgs.Set("timeoutSeconds", MakeNumber((double)ArgInt(args, "buildTimeoutSeconds", 300)));
+            ToolResult build = ProjectBuild(buildArgs);
+            result.Set("build", build.data);
+            if (!build.ok) {
+                result.Set("success", MakeBool(false));
+                ToolResult failure = ToolResult::Failure(
+                    "Project was scaffolded and opened, but the requested build failed.",
+                    "build_failed");
+                failure.data = result;
+                return failure;
+            }
+        }
+    } else {
+        const Json& references = args.Get("references");
+        if (references.IsArray() && !references.array().empty()) {
+            warnings.push_back(MakeString("references require open=true and were not applied."));
+        }
+    }
+
+    result.Set("warnings", warnings);
+    Json nextSteps = Json::ArrayValue();
+    nextSteps.push_back(MakeString("Call project_inspect to verify components, members, and controls."));
+    nextSteps.push_back(MakeString("Implement remaining code with component_set_code or vb6_batch."));
+    nextSteps.push_back(MakeString("Call project_validate, then project_build with method=commandline."));
+    result.Set("nextSteps", nextSteps);
+    return ToolResult::Success(result);
+}
+
+ToolResult ComIdeBackend::ProjectInspect(const Json& args) {
+    ComPtr<IDispatch> project;
+    std::wstring error;
+    if (!FindProject(vbe_.get(), ArgString(args, "project"), project, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "project_not_found");
+    }
+    Json result = DescribeProject(project, true, false);
+    bool includeMembers = ArgBool(args, "includeMembers", true);
+    bool includeControls = ArgBool(args, "includeControls", true);
+    long memberCount = 0;
+    long controlCount = 0;
+    Json components = result.Get("components");
+    if (components.IsArray()) {
+        for (size_t i = 0; i < components.array().size(); ++i) {
+            Json& component = components.at(i);
+            std::string componentName = component.Get("name").AsString();
+            std::string typeName = component.Get("typeName").AsString();
+            if (includeMembers) {
+                Json memberArgs = Json::ObjectValue();
+                memberArgs.Set("project", args.Get("project"));
+                memberArgs.Set("component", Json::StringValue(componentName));
+                ToolResult structure = CodeStructure(memberArgs);
+                if (structure.ok) {
+                    component.Set("members", structure.data.Get("members"));
+                    memberCount += (long)structure.data.Get("members").size();
+                    component.Set("lineCount", structure.data.Get("lineCount"));
+                } else {
+                    component.Set("memberError", structure.data);
+                }
+            }
+            if (includeControls && (typeName == "form" || typeName == "mdiForm" ||
+                                    typeName == "userControl" || typeName == "propertyPage")) {
+                Json formArgs = Json::ObjectValue();
+                formArgs.Set("project", args.Get("project"));
+                formArgs.Set("component", Json::StringValue(componentName));
+                ToolResult controls = FormListControls(formArgs);
+                if (controls.ok) {
+                    component.Set("controls", controls.data.Get("controls"));
+                    controlCount += (long)controls.data.Get("controls").size();
+                } else {
+                    component.Set("controlError", controls.data);
+                }
+            }
+        }
+        result.Set("components", components);
+    }
+    result.Set("memberCount", MakeNumber((double)memberCount));
+    result.Set("controlCount", MakeNumber((double)controlCount));
+    result.Set("inspectionHint", MakeString(
+        "Use code_get_lines for bodies, code_search for cross-project symbols, and form_get_text only when designer text is required."));
+    return ToolResult::Success(result);
+}
+
+ToolResult ComIdeBackend::ProjectValidate(const Json& args) {
+    ComPtr<IDispatch> project;
+    std::wstring error;
+    if (!FindProject(vbe_.get(), ArgString(args, "project"), project, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "project_not_found");
+    }
+    std::wstring vbpPath;
+    GetBstrProperty(project.get(), L"FileName", vbpPath);
+    if (vbpPath.empty()) {
+        return ToolResult::Failure("The project must be saved before it can be validated.",
+                                   "project_unsaved");
+    }
+    ProjectVbpInfo info;
+    std::wstring parseError;
+    if (!ParseVbpFile(vbpPath, info, parseError)) {
+        return ToolResult::Failure(WideToUtf8(parseError), "vbp_parse_error");
+    }
+
+    Json diagnostics = Json::ArrayValue();
+    int errorCount = 0;
+    int warningCount = 0;
+    int infoCount = 0;
+    auto addDiagnostic = [&](const char* severity, const char* code, const std::string& message,
+                             const std::string& component, const std::wstring& path, int line) {
+        Json item = Json::ObjectValue();
+        item.Set("severity", MakeString(severity));
+        item.Set("code", MakeString(code));
+        item.Set("message", MakeString(message));
+        if (!component.empty()) item.Set("component", MakeString(component));
+        if (!path.empty()) item.Set("path", Json::StringValue(path));
+        if (line > 0) item.Set("line", MakeNumber((double)line));
+        diagnostics.push_back(item);
+        if (strcmp(severity, "error") == 0) ++errorCount;
+        else if (strcmp(severity, "warning") == 0) ++warningCount;
+        else ++infoCount;
+    };
+
+    std::set<std::string> componentNames;
+    std::set<std::wstring> componentPaths;
+    bool hasSubMain = false;
+    bool startupResolved = false;
+    for (size_t i = 0; i < info.componentEntries.size(); ++i) {
+        std::wstring componentPath = Utf8ToWide(info.componentEntries[i]);
+        if (!IsAbsolutePath(componentPath)) componentPath = PathJoin(PathDirectory(vbpPath), componentPath);
+        componentPath = GetFullPath(componentPath);
+        std::wstring normalized = NormalizePathForCompare(componentPath);
+        if (!componentPaths.insert(normalized).second) {
+            addDiagnostic("warning", "duplicate_component_file",
+                          "The VBP lists the same component file more than once.", "", componentPath, 0);
+            continue;
+        }
+        if (!FileExists(componentPath)) {
+            addDiagnostic("error", "missing_component_file",
+                          "The component file listed in the VBP does not exist.",
+                          WideToUtf8(PathStem(componentPath)), componentPath, 0);
+            continue;
+        }
+        std::wstring source;
+        DWORD readError = 0;
+        if (!ReadTextFile(componentPath, source, NULL, &readError)) {
+            addDiagnostic("error", "component_read_failed",
+                          "The component file could not be read: " + WideToUtf8(GetLastErrorMessage(readError)),
+                          WideToUtf8(PathStem(componentPath)), componentPath, 0);
+            continue;
+        }
+        std::string componentName = WideToUtf8(SourceVbName(source, PathStem(componentPath)));
+        if (componentName.empty()) componentName = WideToUtf8(PathStem(componentPath));
+        if (!componentNames.insert(ToLowerAscii(componentName)).second) {
+            addDiagnostic("error", "duplicate_component_name",
+                          "More than one component has this VB_Name.", componentName, componentPath, 0);
+        }
+        if (source.find(L"Attribute VB_Name") == std::wstring::npos) {
+            addDiagnostic("warning", "missing_vb_name",
+                          "The component has no Attribute VB_Name declaration.",
+                          componentName, componentPath, 0);
+        } else if (!_wcsicmp(PathStem(componentPath).c_str(), Utf8ToWide(componentName).c_str())) {
+            addDiagnostic("info", "file_name_differs_from_vb_name",
+                          "The file stem differs from the component's VB_Name. This is legal but can confuse navigation.",
+                          componentName, componentPath, 0);
+        }
+        if (source.find(L"Option Explicit") == std::wstring::npos) {
+            addDiagnostic("warning", "missing_option_explicit",
+                          "The component does not contain Option Explicit.",
+                          componentName, componentPath, 0);
+        }
+
+        std::wstring extension = ToLower(PathExtension(componentPath));
+        if (extension == L".frm" || extension == L".ctl" || extension == L".pag") {
+            std::vector<FormControlInfo> controls;
+            std::wstring formError;
+            if (!ListFormControls(source, controls, formError)) {
+                addDiagnostic("error", "invalid_form_designer",
+                              WideToUtf8(formError), componentName, componentPath, 0);
+            } else {
+                std::set<std::string> controlKeys;
+                for (size_t c = 0; c < controls.size(); ++c) {
+                    char keyBuffer[256] = {0};
+                    _snprintf_s(keyBuffer, sizeof(keyBuffer), _TRUNCATE, "%s#%d",
+                                controls[c].name.c_str(), controls[c].hasIndex ? controls[c].index : -1);
+                    if (!controlKeys.insert(keyBuffer).second) {
+                        addDiagnostic("error", "duplicate_form_control",
+                                      "The form contains a duplicate control name/index pair.",
+                                      componentName, componentPath, controls[c].line);
+                    }
+                }
+                infoCount += 0;
+            }
+        }
+        if (source.find(L"Sub Main") != std::wstring::npos) hasSubMain = true;
+        if (!info.startup.empty() &&
+            (_wcsicmp(Utf8ToWide(info.startup).c_str(), Utf8ToWide(componentName).c_str()) == 0 ||
+             _wcsicmp(Utf8ToWide(info.startup).c_str(), PathStem(componentPath).c_str()) == 0 ||
+             (_wcsicmp(Utf8ToWide(info.startup).c_str(), L"Sub Main") == 0 && hasSubMain))) {
+            startupResolved = true;
+        }
+    }
+
+    if (info.componentEntries.empty()) {
+        addDiagnostic("error", "no_components",
+                      "The project has no component entries.", "", vbpPath, 0);
+    }
+    if (!info.startup.empty() && !startupResolved) {
+        addDiagnostic("error", "startup_not_found",
+                      "The configured startup object was not found in the project.",
+                      info.startup, vbpPath, 0);
+    } else if (info.startup.empty() && IEquals(info.type, "Exe")) {
+        addDiagnostic("warning", "startup_not_configured",
+                      "No explicit startup object is configured; VB6 will use its default project startup behavior.",
+                      "", vbpPath, 0);
+    }
+    if (IEquals(info.type, "Exe") && !hasSubMain && info.startup.empty()) {
+        addDiagnostic("info", "no_sub_main",
+                      "No Sub Main was found. Set a startup form or add a startup module if the application needs one.",
+                      "", vbpPath, 0);
+    }
+
+    if (ArgBool(args, "checkReferences", true)) {
+        ToolResult references = ReferencesList(args);
+        if (!references.ok) {
+            addDiagnostic("warning", "references_unavailable",
+                          references.data.Get("error").AsString(), "", vbpPath, 0);
+        } else {
+            const Json& list = references.data.Get("references");
+            if (list.IsArray()) {
+                for (size_t i = 0; i < list.array().size(); ++i) {
+                    const Json& reference = list.at(i);
+                    if (reference.Get("isBroken").AsBool(false)) {
+                        addDiagnostic("error", "broken_reference",
+                                      "A project reference is broken: " +
+                                      reference.Get("name").AsString(), "", vbpPath, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    bool strict = ArgBool(args, "strict", false);
+    bool valid = errorCount == 0 && (!strict || warningCount == 0);
+    Json result = Json::ObjectValue();
+    result.Set("valid", MakeBool(valid));
+    result.Set("projectType", MakeString(info.type));
+    result.Set("vbpPath", Json::StringValue(GetFullPath(vbpPath)));
+    result.Set("componentCount", MakeNumber((double)info.componentEntries.size()));
+    result.Set("startup", MakeString(info.startup));
+    result.Set("errorCount", MakeNumber((double)errorCount));
+    result.Set("warningCount", MakeNumber((double)warningCount));
+    result.Set("infoCount", MakeNumber((double)infoCount));
+    result.Set("diagnostics", diagnostics);
+    result.Set("hint", MakeString(
+        "Structural validation does not resolve types or compile code. Run project_build with method=commandline for compiler diagnostics."));
     return ToolResult::Success(result);
 }
 
@@ -2688,6 +3207,114 @@ ToolResult ComIdeBackend::CodeFind(const Json& args) {
     return ToolResult::Success(result);
 }
 
+ToolResult ComIdeBackend::CodeSearch(const Json& args) {
+    ComPtr<IDispatch> project;
+    std::wstring error;
+    if (!FindProject(vbe_.get(), ArgString(args, "project"), project, error)) {
+        return ToolResult::Failure(WideToUtf8(error), "project_not_found");
+    }
+    std::string queryText = ArgString(args, "query");
+    if (queryText.empty()) {
+        return ToolResult::Failure("code_search requires query.", "invalid_arguments");
+    }
+    std::wstring query = Utf8ToWide(queryText);
+    std::wstring lowerQuery = ToLower(query);
+    bool matchCase = ArgBool(args, "matchCase", false);
+    bool wholeWord = ArgBool(args, "wholeWord", false);
+    int maxResults = ArgInt(args, "maxResults", 200);
+    if (maxResults < 1) maxResults = 1;
+    if (maxResults > 1000) maxResults = 1000;
+    std::string componentFilter = ArgString(args, "component");
+
+    Json matches = Json::ArrayValue();
+    int searchedComponents = 0;
+    bool truncated = false;
+    ComPtr<IDispatch> components = GetObjectProperty(project.get(), L"VBComponents");
+    if (!components) return ToolResult::Failure("VBComponents is unavailable.", "vbide_error");
+    long componentCount = GetCollectionCount(components.get());
+    for (long i = 1; i <= componentCount && !truncated; ++i) {
+        ComPtr<IDispatch> component = GetCollectionItem(components.get(), i);
+        if (!component) continue;
+        std::wstring componentName;
+        GetBstrProperty(component.get(), L"Name", componentName);
+        if (!componentFilter.empty() &&
+            !IEquals(WideToUtf8(componentName), componentFilter)) {
+            continue;
+        }
+        ComPtr<IDispatch> codeModule = GetObjectProperty(component.get(), L"CodeModule");
+        if (!codeModule) continue;
+        ++searchedComponents;
+        long lineCount = 0;
+        GetLongProperty(codeModule.get(), L"CountOfLines", lineCount);
+        if (lineCount <= 0) continue;
+        Variant startArg, countArg;
+        SetVariantLong(startArg, 1);
+        SetVariantLong(countArg, lineCount);
+        std::vector<Variant*> lineArgs;
+        lineArgs.push_back(&startArg);
+        lineArgs.push_back(&countArg);
+        Variant textValue;
+        HRESULT hr = GetProperty(codeModule.get(), L"Lines", lineArgs, textValue);
+        if (FAILED(hr)) continue;
+        std::wstring text = NormalizeNewlines(textValue.AsWString());
+        std::vector<std::wstring> lines;
+        size_t lineStart = 0;
+        for (size_t p = 0; p <= text.size(); ++p) {
+            if (p == text.size() || text[p] == L'\n') {
+                size_t end = p;
+                if (end > lineStart && text[end - 1] == L'\r') --end;
+                lines.push_back(text.substr(lineStart, end - lineStart));
+                lineStart = p + 1;
+            }
+        }
+        long type = 0;
+        GetLongProperty(component.get(), L"Type", type);
+        for (size_t lineIndex = 0; lineIndex < lines.size() && !truncated; ++lineIndex) {
+            const std::wstring& line = lines[lineIndex];
+            std::wstring haystack = matchCase ? line : ToLower(line);
+            size_t offset = 0;
+            while (offset <= haystack.size() && !truncated) {
+                size_t hit = haystack.find(matchCase ? query : lowerQuery, offset);
+                if (hit == std::wstring::npos) break;
+                bool boundaryOk = true;
+                if (wholeWord) {
+                    auto isWord = [](wchar_t ch) {
+                        return (ch >= L'A' && ch <= L'Z') || (ch >= L'a' && ch <= L'z') ||
+                               (ch >= L'0' && ch <= L'9') || ch == L'_';
+                    };
+                    if (hit > 0 && isWord(line[hit - 1])) boundaryOk = false;
+                    size_t after = hit + query.size();
+                    if (after < line.size() && isWord(line[after])) boundaryOk = false;
+                }
+                if (boundaryOk) {
+                    Json match = Json::ObjectValue();
+                    match.Set("component", Json::StringValue(componentName));
+                    match.Set("componentType", Json::StringValue(ComponentTypeName(type)));
+                    match.Set("line", MakeNumber((double)(lineIndex + 1)));
+                    match.Set("column", MakeNumber((double)(hit + 1)));
+                    match.Set("text", Json::StringValue(line));
+                    matches.push_back(match);
+                    if ((int)matches.size() >= maxResults) {
+                        truncated = true;
+                        break;
+                    }
+                }
+                offset = hit + (query.empty() ? 1 : query.size());
+            }
+        }
+    }
+
+    Json result = Json::ObjectValue();
+    result.Set("query", MakeString(queryText));
+    result.Set("matchCase", MakeBool(matchCase));
+    result.Set("wholeWord", MakeBool(wholeWord));
+    result.Set("count", MakeNumber((double)matches.size()));
+    result.Set("searchedComponents", MakeNumber((double)searchedComponents));
+    result.Set("truncated", MakeBool(truncated));
+    result.Set("matches", matches);
+    return ToolResult::Success(result);
+}
+
 ToolResult ComIdeBackend::CodeCreateEvent(const Json& args) {
     ComPtr<IDispatch> project;
     ComPtr<IDispatch> component;
@@ -3589,6 +4216,91 @@ ToolResult ComIdeBackend::SourceList(const Json& args) {
     result.Set("count", MakeNumber((double)count));
     result.Set("files", files);
     result.Set("truncated", MakeBool(count >= 5000));
+    return ToolResult::Success(result);
+}
+
+ToolResult ComIdeBackend::Vb6Batch(const Json& args) {
+    const Json& calls = args.Get("calls");
+    if (!calls.IsArray() || calls.array().empty()) {
+        return ToolResult::Failure("vb6_batch requires a non-empty calls array.", "invalid_arguments");
+    }
+    int maxCalls = ArgInt(args, "maxCalls", 50);
+    if (maxCalls < 1) maxCalls = 1;
+    if (maxCalls > 200) maxCalls = 200;
+    bool stopOnError = ArgBool(args, "stopOnError", true);
+    Json results = Json::ArrayValue();
+    int successCount = 0;
+    int errorCount = 0;
+    bool stoppedEarly = false;
+    for (size_t i = 0; i < calls.array().size(); ++i) {
+        if ((int)i >= maxCalls) {
+            stoppedEarly = true;
+            break;
+        }
+        const Json& call = calls.at(i);
+        Json item = Json::ObjectValue();
+        item.Set("index", MakeNumber((double)(i + 1)));
+        if (!call.IsObject()) {
+            item.Set("ok", MakeBool(false));
+            item.Set("error", MakeString("Batch item is not an object."));
+            item.Set("code", MakeString("invalid_arguments"));
+            results.push_back(item);
+            ++errorCount;
+            if (stopOnError) {
+                stoppedEarly = true;
+                break;
+            }
+            continue;
+        }
+        std::string toolName = call.Get("tool").AsString();
+        item.Set("tool", MakeString(toolName));
+        if (toolName.empty() || toolName == "vb6_batch" || !IsKnownTool(toolName)) {
+            item.Set("ok", MakeBool(false));
+            item.Set("error", MakeString(toolName == "vb6_batch"
+                ? "vb6_batch cannot call itself."
+                : "Unknown or missing batch tool name."));
+            item.Set("code", MakeString("invalid_tool"));
+            results.push_back(item);
+            ++errorCount;
+            if (stopOnError) {
+                stoppedEarly = true;
+                break;
+            }
+            continue;
+        }
+        Json callArgs = call.Get("arguments");
+        if (!callArgs.IsObject()) callArgs = Json::ObjectValue();
+        ToolResult one = ExecuteTool(toolName, callArgs);
+        item.Set("ok", MakeBool(one.ok));
+        item.Set("result", one.data);
+        if (!one.ok) {
+            item.Set("code", MakeString(one.errorCode));
+            ++errorCount;
+        } else {
+            ++successCount;
+        }
+        results.push_back(item);
+        if (!one.ok && stopOnError) {
+            stoppedEarly = true;
+            break;
+        }
+    }
+
+    Json result = Json::ObjectValue();
+    result.Set("success", MakeBool(errorCount == 0));
+    result.Set("requestedCalls", MakeNumber((double)calls.size()));
+    result.Set("executedCalls", MakeNumber((double)results.size()));
+    result.Set("successCount", MakeNumber((double)successCount));
+    result.Set("errorCount", MakeNumber((double)errorCount));
+    result.Set("stoppedEarly", MakeBool(stoppedEarly));
+    result.Set("results", results);
+    if (errorCount > 0) {
+        ToolResult failure = ToolResult::Failure(
+            "One or more batched tool calls failed. Inspect results[] for partial effects.",
+            "batch_failed");
+        failure.data = result;
+        return failure;
+    }
     return ToolResult::Success(result);
 }
 

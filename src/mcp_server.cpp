@@ -12,7 +12,7 @@ namespace mcpaddin {
 namespace {
 
 const char* kServerName = "VB6 MCP Addin";
-const char* kServerVersion = "1.0.0";
+const char* kServerVersion = "1.1.0";
 const char* kDefaultProtocolVersion = "2025-06-18";
 
 std::string PortText(int port) {
@@ -54,16 +54,371 @@ Json InitializeResult(const std::string& requestedVersion) {
     Json tools = Json::ObjectValue();
     tools.Set("listChanged", MakeBool(false));
     capabilities.Set("tools", tools);
+    Json resources = Json::ObjectValue();
+    resources.Set("subscribe", MakeBool(false));
+    resources.Set("listChanged", MakeBool(false));
+    capabilities.Set("resources", resources);
+    Json prompts = Json::ObjectValue();
+    prompts.Set("listChanged", MakeBool(false));
+    capabilities.Set("prompts", prompts);
     result.Set("capabilities", capabilities);
     Json serverInfo = Json::ObjectValue();
     serverInfo.Set("name", MakeString(kServerName));
     serverInfo.Set("version", MakeString(kServerVersion));
     result.Set("serverInfo", serverInfo);
     result.Set("instructions",
-        MakeString("Controls a running Visual Basic 6 IDE. Use project_* and component_* tools for "
-                   "the VBIDE automation model, form_* for designer text operations, and source_* "
-                   "for allow-root-constrained text files. Tool arguments use the IDE's project and "
-                   "component names (or VBP paths)."));
+        MakeString("Controls a running Visual Basic 6 IDE. Start with ide_status, then read "
+                   "vb6://guide/ai-quickstart when the task is larger than one edit. Preferred flow: "
+                   "project_inspect/code_search for existing code; project_scaffold for a new app; "
+                   "targeted component_*/code_*/form_* edits; project_validate; project_build with "
+                   "method=commandline. Use vb6_batch for many independent operations in one request. "
+                   "Project/component selectors accept names, VBP paths, or 1-based indexes."));
+    return result;
+}
+
+std::string AiQuickStartGuide() {
+    return
+R"MD(# VB6 MCP: AI quick start
+
+This server controls a live Visual Basic 6 IDE. Treat every write as a real
+change to the developer's currently open workspace.
+
+## First calls
+
+1. `ide_status` - confirm the backend, active project, endpoints, and tool groups.
+2. `project_list` and `project_inspect` - understand existing projects before editing.
+3. `code_search` - find symbols, procedures, event handlers, and constants across the project.
+4. `component_get_code`, `code_get_lines`, or `code_structure` - read only the code you need.
+
+## Golden paths
+
+### New application
+
+1. `project_scaffold` with the project metadata and a `components` manifest.
+2. Put initial modules, classes, forms, controls, and code in that one manifest.
+3. `project_inspect` to verify the generated structure.
+4. Implement remaining behavior with `component_set_code`, `code_lines_edit`,
+   `code_create_event`, and `form_add_control`.
+5. `project_validate`.
+6. `project_build` with `method="commandline"` and inspect `compilerOutput`.
+
+### Existing application
+
+1. `project_inspect` for the component/member/control map.
+2. `code_search` for the symbol or text.
+3. `code_get_lines` for the relevant implementation.
+4. Make focused edits.
+5. Re-run `project_validate` and `project_build`.
+
+### Many independent operations
+
+Use `vb6_batch` with `calls: [{tool, arguments}, ...]`. Calls run sequentially
+and have no rollback. Keep `stopOnError=true` unless you deliberately want to
+continue after failures.
+
+## VB6 rules that matter
+
+- `CodeModule` tools edit code, not the form designer header. Use `form_*` or
+  `component_replace_file` for complete `.frm`/`.ctl`/`.pag` text.
+- Retail VB6 cannot import components through `VBComponents.Import`. File-backed
+  operations update the `.vbp`; results with `requiresReload=true` require a
+  project reload before the IDE reflects them.
+- Preserve `.frx` companions when a form contains binary properties.
+- Do not close the main IDE window during unattended work.
+- Use `Option Explicit` and valid VB6 identifiers (`[A-Za-z][A-Za-z0-9_]*`).
+- Use CRLF in persisted VB6 source when practical.
+- `project_validate` is structural only. The compiler is the authority for type,
+  syntax, and missing-reference errors.
+
+## Selectors
+
+Project and component selectors accept a VBIDE name, a `.vbp` path, or a 1-based
+index (`1` or `#1`). Omit `project` to target the active project.
+
+Reference resource: `vb6://guide/build-complete-app`
+Tool groups: `vb6://reference/tool-groups`
+)MD";
+}
+
+std::string CompleteAppGuide() {
+    return
+R"MD(# Building a complete VB6 application
+
+`project_scaffold` is the one-call bootstrap. It writes all component files and
+the `.vbp`, adds inline form controls, opens the project, applies references and
+toolbox ProgIDs, and can build the result.
+
+## Minimal complete app
+
+```json
+{
+  "directory": "C:\\Projects\\AddressBook",
+  "name": "AddressBook",
+  "title": "Address Book",
+  "type": "standard_exe",
+  "startup": "Sub Main",
+  "components": [
+    {
+      "kind": "module",
+      "name": "AppMain",
+      "code": "Public Sub Main()\r\n    frmMain.Show\r\nEnd Sub"
+    },
+    {
+      "kind": "form",
+      "name": "frmMain",
+      "title": "Address Book",
+      "controls": [
+        {"type": "label", "name": "lblName", "properties": {"Caption": "Name", "Left": 240, "Top": 240}},
+        {"type": "textbox", "name": "txtName", "properties": {"Left": 240, "Top": 480, "Width": 3600}},
+        {"type": "commandbutton", "name": "cmdSave", "properties": {"Caption": "Save", "Left": 240, "Top": 960}}
+      ],
+      "code": "Private Sub cmdSave_Click()\r\n    MsgBox \"Saved \" & txtName.Text\r\nEnd Sub"
+    },
+    {
+      "kind": "class",
+      "name": "Contact",
+      "code": "Public Name As String\r\nPublic Phone As String"
+    }
+  ]
+}
+```
+
+## Component kinds
+
+- `module`: `.bas`; use for `Sub Main`, shared procedures, and declarations.
+- `class`: `.cls`; use for domain objects and services.
+- `form`: `.frm`; supports inline `controls`.
+- `usercontrol`: `.ctl`; for reusable ActiveX controls.
+- `propertypage`: `.pag`; for ActiveX property pages.
+
+## Control properties
+
+`controls[].properties` is an object of VB6 designer property names to values.
+Strings are quoted automatically; numbers and booleans are emitted unquoted.
+Use `container` for nested controls and `index` for control arrays.
+
+## References
+
+Pass `references: [{path: "C:\\path\\library.dll"}]` or
+`references: [{guid: "{...}", "major": 1, "minor": 0}]`. References are applied
+after the project opens, so `open` must be true.
+
+## Build
+
+Set `"build": true` and optionally `"buildMethod": "commandline"`,
+`"buildOutputPath"`, and `"buildTimeoutSeconds"`. For unattended work, prefer the
+command-line method because compiler diagnostics are returned instead of a
+modal IDE dialog.
+
+## After scaffolding
+
+Use `project_inspect` to confirm members and controls. Use `vb6_batch` for many
+subsequent edits. Finish with `project_validate` and `project_build`.
+)MD";
+}
+
+std::string DesignerGuide() {
+    return
+R"MD(# VB6 designer and file compatibility
+
+## Two kinds of component text
+
+1. Code text: the code module exposed by `CodeModule`. Tools: `component_get_code`,
+   `component_set_code`, `code_get_lines`, `code_lines_edit`, `code_search`.
+2. Complete component text: the exported `.frm`, `.ctl`, `.pag`, `.cls`, or
+   `.bas` file. Tools: `form_get_text`, `form_set_text`,
+   `component_replace_file`, `component_export`.
+
+`CodeModule` never edits the designer header (`VERSION`, `Begin ... End`,
+attributes). Do not try to add controls by editing code lines.
+
+## Live designer vs file fallback
+
+- If a form designer is open, control operations may use
+  `VBComponent.Designer` -> `VBForm.VBControls`.
+- Retail VB6 does not reliably expose `VBComponents.Import`.
+- When native import is unavailable, the add-in writes the component file and
+  updates the `.vbp`.
+- A result with `requiresReload=true` means the file is correct on disk but the
+  IDE must reload the project before it sees the change.
+
+## Forms and FRX files
+
+Binary designer properties live in the companion `.frx` file. Move/export/import
+`.frm` and `.frx` together. Do not delete an `.frx` merely because a `.frm`
+looks self-contained.
+
+## Safe control editing
+
+1. `form_list_controls` to inspect names, types, indexes, and current properties.
+2. `form_add_control`, `form_remove_control`, or
+   `form_set_control_property`.
+3. Re-list controls after several changes.
+4. For large structural changes, export, modify the full text, and use
+   `component_replace_file` or `form_set_text`.
+
+## VB6 identifiers and values
+
+- Component and control names must be valid VB6 identifiers.
+- Control arrays share a name and use unique `Index` values.
+- Strings containing quotes must be JSON-escaped and then VB6-escaped.
+- Designer coordinates use VB6 twips.
+)MD";
+}
+
+std::string ToolGroupsResource() {
+    std::string text = "# VB6 MCP tool groups\n\n";
+    text += "Groups returned by `ide_status.toolGroups`:\n\n";
+    text += GetToolGroups().Dump(true);
+    text += "\n\nRecommended workflow:\n\n";
+    text += GetRecommendedWorkflow().Dump(true);
+    text += "\n";
+    return text;
+}
+
+std::string ReadStaticResource(const std::string& uri) {
+    if (uri == "vb6://guide/ai-quickstart") return AiQuickStartGuide();
+    if (uri == "vb6://guide/build-complete-app") return CompleteAppGuide();
+    if (uri == "vb6://guide/designer-compatibility") return DesignerGuide();
+    if (uri == "vb6://reference/tool-groups") return ToolGroupsResource();
+    return std::string();
+}
+
+Json ResourceListResult() {
+    struct ResourceDef {
+        const char* uri;
+        const char* name;
+        const char* title;
+        const char* description;
+    };
+    static const ResourceDef definitions[] = {
+        {"vb6://guide/ai-quickstart", "ai-quickstart", "VB6 MCP AI quick start",
+         "Read-first workflow, golden paths, selectors, and VB6 compatibility rules."},
+        {"vb6://guide/build-complete-app", "build-complete-app", "Build a complete VB6 application",
+         "Declarative project_scaffold manifest, control properties, references, and build flow."},
+        {"vb6://guide/designer-compatibility", "designer-compatibility", "VB6 designer compatibility",
+         "CodeModule vs complete designer text, live designer vs file fallback, and FRX handling."},
+        {"vb6://reference/tool-groups", "tool-groups", "VB6 MCP tool groups and workflow",
+         "Tool families and the recommended discover/inspect/edit/validate/build workflow."}
+    };
+    Json resources = Json::ArrayValue();
+    for (size_t i = 0; i < sizeof(definitions) / sizeof(definitions[0]); ++i) {
+        Json item = Json::ObjectValue();
+        item.Set("uri", MakeString(definitions[i].uri));
+        item.Set("name", MakeString(definitions[i].name));
+        item.Set("title", MakeString(definitions[i].title));
+        item.Set("description", MakeString(definitions[i].description));
+        item.Set("mimeType", MakeString("text/markdown"));
+        resources.push_back(item);
+    }
+    return resources;
+}
+
+Json PromptListResult() {
+    struct PromptDef {
+        const char* name;
+        const char* title;
+        const char* description;
+        const char* argName;
+        const char* argDescription;
+        bool argRequired;
+    };
+    static const PromptDef definitions[] = {
+        {"create-vb6-app", "Create a complete VB6 app", "Scaffold, implement, validate, and build a new VB6 application.",
+         "requirements", "Application requirements, screens, data model, and behavior.", false},
+        {"inspect-and-extend-vb6-app", "Inspect and extend a VB6 app", "Map an existing project, find the relevant code, edit it, and rebuild.",
+         "task", "The requested feature, bug fix, or refactor.", false},
+        {"fix-vb6-build", "Diagnose a VB6 build failure", "Validate structure, compile with diagnostics, fix errors, and rebuild.",
+         "project", "Project name or VBP path. Omit for the active project.", false},
+        {"create-vb6-form", "Create a VB6 form", "Create a form with controls and event handlers using designer-safe operations.",
+         "formName", "Desired form name and purpose.", false}
+    };
+    Json prompts = Json::ArrayValue();
+    for (size_t i = 0; i < sizeof(definitions) / sizeof(definitions[0]); ++i) {
+        Json item = Json::ObjectValue();
+        item.Set("name", MakeString(definitions[i].name));
+        item.Set("title", MakeString(definitions[i].title));
+        item.Set("description", MakeString(definitions[i].description));
+        Json args = Json::ArrayValue();
+        Json arg = Json::ObjectValue();
+        arg.Set("name", MakeString(definitions[i].argName));
+        arg.Set("description", MakeString(definitions[i].argDescription));
+        arg.Set("required", MakeBool(definitions[i].argRequired));
+        args.push_back(arg);
+        item.Set("arguments", args);
+        prompts.push_back(item);
+    }
+    return prompts;
+}
+
+Json PromptGetResult(const std::string& name, const Json& arguments) {
+    std::string text;
+    std::string description;
+    std::string requirements = arguments.Get("requirements").AsString();
+    std::string task = arguments.Get("task").AsString();
+    std::string project = arguments.Get("project").AsString();
+    std::string formName = arguments.Get("formName").AsString();
+    if (name == "create-vb6-app") {
+        description = "Create, validate, and build a complete VB6 application.";
+        text = "Build a complete VB6 application through the VB6 MCP server.\n\n"
+               "Requirements:\n" + (requirements.empty() ? "None supplied; ask for missing product details before scaffolding.\n" : requirements + "\n") +
+               "\nWorkflow:\n"
+               "1. Call ide_status.\n"
+               "2. Read resource vb6://guide/build-complete-app.\n"
+               "3. Design a component manifest: startup module, forms with controls, classes, and shared modules.\n"
+               "4. Call project_scaffold once with all initial components and code.\n"
+               "5. Call project_inspect and verify names, members, and controls.\n"
+               "6. Implement remaining behavior in focused edits; use vb6_batch for repeated operations.\n"
+               "7. Call project_validate, then project_build with method=commandline.\n"
+               "8. Report outputPath, compiler diagnostics, and any remaining limitations.\n";
+    } else if (name == "inspect-and-extend-vb6-app") {
+        description = "Inspect an existing VB6 project and implement a requested change.";
+        text = "Inspect and extend an existing VB6 application through the VB6 MCP server.\n\n"
+               "Task:\n" + (task.empty() ? "Infer the requested change from the conversation.\n" : task + "\n") +
+               "\nWorkflow:\n"
+               "1. Call ide_status and project_list.\n"
+               "2. Call project_inspect for the target project.\n"
+               "3. Use code_search and targeted code_get_lines calls; avoid dumping the whole project.\n"
+               "4. Make focused code/designer edits and preserve public behavior unless asked to change it.\n"
+               "5. Call project_validate and project_build with method=commandline.\n"
+               "6. Summarize changed components and verification evidence.\n";
+    } else if (name == "fix-vb6-build") {
+        description = "Diagnose and fix VB6 build failures.";
+        text = "Diagnose a VB6 project build failure.\n\n"
+               "Project: " + (project.empty() ? "(active project)" : project) + "\n\n"
+               "Workflow:\n"
+               "1. Call ide_status.\n"
+               "2. Call project_validate for missing files, malformed forms, startup, and broken references.\n"
+               "3. Call project_build with method=commandline and capture compilerOutput.\n"
+               "4. Locate each compiler error with code_search/code_get_lines.\n"
+               "5. Fix the smallest responsible code or project settings.\n"
+               "6. Re-run validation and build until success is true.\n"
+               "7. Report the exact diagnostics resolved and any remaining warnings.\n";
+    } else if (name == "create-vb6-form") {
+        description = "Create a VB6 form with designer-safe controls and event handlers.";
+        text = "Create a VB6 form using the VB6 MCP server.\n\n"
+               "Form request: " + (formName.empty() ? "(derive a valid VB6 name from the requested purpose)" : formName) + "\n\n"
+               "Workflow:\n"
+               "1. Read vb6://guide/designer-compatibility.\n"
+               "2. Use project_scaffold if the project is new; otherwise project_add_form.\n"
+               "3. Add controls with form_add_control or one vb6_batch call.\n"
+               "4. Add event procedures with code_create_event, then implement them with code_lines_edit or component_set_code.\n"
+               "5. Call form_list_controls and project_inspect to verify.\n"
+               "6. Validate and build with method=commandline.\n";
+    } else {
+        return Json::NullValue();
+    }
+    Json result = Json::ObjectValue();
+    result.Set("description", MakeString(description));
+    Json messages = Json::ArrayValue();
+    Json message = Json::ObjectValue();
+    message.Set("role", MakeString("user"));
+    Json content = Json::ObjectValue();
+    content.Set("type", MakeString("text"));
+    content.Set("text", MakeString(text));
+    message.Set("content", content);
+    messages.push_back(message);
+    result.Set("messages", messages);
     return result;
 }
 
@@ -635,6 +990,7 @@ Json McpServer::Impl::ProcessSingle(const Json& request, bool& hasResponse) {
         try {
             ToolResult toolResult = backend_->CallTool(toolName, arguments);
             if (toolResult.ok && toolName == "ide_status" && toolResult.data.IsObject()) {
+                toolResult.data.Set("serverVersion", MakeString(kServerVersion));
                 Json transport = Json::ObjectValue();
                 transport.Set("httpEndpoint", MakeString(HttpEndpoint()));
                 transport.Set("httpsEndpoint", MakeString(HttpsEndpoint()));
@@ -652,11 +1008,50 @@ Json McpServer::Impl::ProcessSingle(const Json& request, bool& hasResponse) {
             return RpcResult(id, ToolCallResult(failure));
         }
     }
-    if (method == "resources/list" || method == "resources/templates/list" || method == "prompts/list") {
+    if (method == "resources/list") {
         Json result = Json::ObjectValue();
-        if (method == "resources/list") result.Set("resources", Json::ArrayValue());
-        else if (method == "resources/templates/list") result.Set("resourceTemplates", Json::ArrayValue());
-        else result.Set("prompts", Json::ArrayValue());
+        result.Set("resources", ResourceListResult());
+        return RpcResult(id, result);
+    }
+    if (method == "resources/templates/list") {
+        Json result = Json::ObjectValue();
+        result.Set("resourceTemplates", Json::ArrayValue());
+        return RpcResult(id, result);
+    }
+    if (method == "resources/read") {
+        if (!params.IsObject() || !params.Get("uri").IsString()) {
+            return RpcError(id, -32602, "resources/read requires params.uri.");
+        }
+        std::string uri = params.Get("uri").AsString();
+        std::string text = ReadStaticResource(uri);
+        if (text.empty()) {
+            return RpcError(id, -32602, "Unknown resource URI: " + uri);
+        }
+        Json result = Json::ObjectValue();
+        Json contents = Json::ArrayValue();
+        Json content = Json::ObjectValue();
+        content.Set("uri", MakeString(uri));
+        content.Set("mimeType", MakeString("text/markdown"));
+        content.Set("text", MakeString(text));
+        contents.push_back(content);
+        result.Set("contents", contents);
+        return RpcResult(id, result);
+    }
+    if (method == "prompts/list") {
+        Json result = Json::ObjectValue();
+        result.Set("prompts", PromptListResult());
+        return RpcResult(id, result);
+    }
+    if (method == "prompts/get") {
+        if (!params.IsObject() || !params.Get("name").IsString()) {
+            return RpcError(id, -32602, "prompts/get requires params.name.");
+        }
+        Json promptArgs = params.Get("arguments");
+        if (!promptArgs.IsObject()) promptArgs = Json::ObjectValue();
+        Json result = PromptGetResult(params.Get("name").AsString(), promptArgs);
+        if (result.IsNull()) {
+            return RpcError(id, -32602, "Unknown prompt: " + params.Get("name").AsString());
+        }
         return RpcResult(id, result);
     }
     if (method == "logging/setLevel") {

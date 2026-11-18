@@ -29,6 +29,7 @@ struct ProjectTemplateSpec {
     std::string product;
     std::wstring directory;
     std::wstring vbpPath;
+    std::string startup;
     ProjectKind kind;
     bool overwrite;
     bool createDefaultStartup;

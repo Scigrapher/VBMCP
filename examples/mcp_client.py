@@ -42,6 +42,11 @@ def main():
     parser.add_argument("--token", default=read_token())
     parser.add_argument("--insecure", action="store_true")
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--resources", action="store_true")
+    parser.add_argument("--prompts", action="store_true")
+    parser.add_argument("--read-resource")
+    parser.add_argument("--prompt")
+    parser.add_argument("--prompt-arguments", default="{}")
     parser.add_argument("tool", nargs="?")
     parser.add_argument("arguments", nargs="?", default="{}")
     args = parser.parse_args()
@@ -75,6 +80,59 @@ def main():
             args.insecure,
         )
         print(json.dumps(tools, indent=2))
+        return 0
+
+    if args.resources:
+        resources = post(
+            args.url,
+            args.token,
+            {"jsonrpc": "2.0", "id": 2, "method": "resources/list", "params": {}},
+            args.insecure,
+        )
+        print(json.dumps(resources, indent=2))
+        return 0
+
+    if args.read_resource:
+        resource = post(
+            args.url,
+            args.token,
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "resources/read",
+                "params": {"uri": args.read_resource},
+            },
+            args.insecure,
+        )
+        print(json.dumps(resource, indent=2))
+        return 0
+
+    if args.prompts:
+        prompts = post(
+            args.url,
+            args.token,
+            {"jsonrpc": "2.0", "id": 2, "method": "prompts/list", "params": {}},
+            args.insecure,
+        )
+        print(json.dumps(prompts, indent=2))
+        return 0
+
+    if args.prompt:
+        prompt = post(
+            args.url,
+            args.token,
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "prompts/get",
+                "params": {
+                    "name": args.prompt,
+                    "arguments": json.loads(args.prompt_arguments),
+                },
+            },
+            args.insecure,
+        )
+        print(json.dumps(prompt, indent=2))
         return 0
 
     if args.tool:

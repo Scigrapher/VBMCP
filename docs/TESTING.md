@@ -20,16 +20,18 @@ IDE. It does not locate or launch VB6.
 | HTTP | keep-alive, chunked bodies, authentication, CORS, HEAD/health |
 | HTTPS | SChannel listener, PFX loading, TLS MCP request/response |
 | MCP | initialize, ping, tools/list, tools/call, batches, notifications |
+| MCP guidance | resources/list/read, prompts/list/get, `ide_status` workflow metadata |
 | Legacy MCP | `/sse` endpoint event, `/messages` POST, SSE response event |
-| Projects | create, open, close, save, list, get, active project |
+| Projects | create, scaffold, inspect, validate, open, close, save, list, get, active project |
 | Components | add, import, create file, list, get, rename, export, remove |
 | Project properties | VBP section/key read/write, toolbox ProgID registration |
 | Components | property-bag list/read/write, activate/reload/save-as/designer |
-| Code | get, replace, find/replace, line read/edit, find, events, members |
+| Code | get, replace, find/replace, project-wide search, line read/edit, find, events, members |
 | IDE UI | windows list/action, code panes list/selection |
 | Forms | designer export, control add/remove, properties, control arrays |
 | Files | allow-root enforcement, read/write/edit/list, wildcard recursion |
 | Builds | EXE and ActiveX DLL output resolution and output-file creation |
+| Orchestration | sequential `vb6_batch`, stop-on-error, partial-result reporting |
 | Unit | JSON, VBP parsing, templates, configuration/token generation, path safety |
 
 ## XP import verification
@@ -80,10 +82,13 @@ On a VB6 test machine, the first smoke sequence should be:
 
 1. Load the add-in.
 2. Read the generated token and call `ide_status`.
-3. Call `project_create` with `"open": true`.
-4. Add a class and form, edit code, add a control, and build.
-5. Exercise `code_get_lines`, `code_find`, `code_structure`, and
+3. Read `vb6://guide/ai-quickstart` with `resources/read`.
+4. Call `project_scaffold` with a startup module, class, and form containing
+   two controls; set `"build": true` and `"method": "commandline"`.
+5. Call `project_inspect`, `code_search`, and `project_validate`.
+6. Use `vb6_batch` to add another control and an event handler.
+7. Exercise `code_get_lines`, `code_find`, `code_structure`, and
    `code_create_event`.
-6. Exercise `code_panes_list`, `code_pane_set`, `windows_list`, and
+8. Exercise `code_panes_list`, `code_pane_set`, `windows_list`, and
    `window_action`.
-7. Call `project_build` with `"method": "commandline"` and inspect the log.
+9. Call `project_build` with `"method": "commandline"` and inspect the log.

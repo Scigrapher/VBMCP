@@ -2,9 +2,13 @@
 
 `MCPAddin` is a native x86 COM add-in for Visual Basic 6 that exposes the live
 VB6 IDE as a Model Context Protocol server over HTTP or HTTPS. It is designed
-for automation from a remote MCP harness: create/open projects, add components
-and files, read and edit code, manipulate form designer text and controls,
-manage references, save, and build.
+for automation from a remote MCP harness or AI coding session: scaffold complete
+projects, inspect code and forms, search the workspace, edit components, manage
+references, validate structure, and build.
+
+**Start here for AI work:** [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md). The server
+also exposes the same guidance through MCP resources and prompts, beginning with
+`vb6://guide/ai-quickstart`.
 
 The repository contains:
 
@@ -13,6 +17,7 @@ The repository contains:
 - XP-compatible install/uninstall scripts
 - A simulated VB6 IDE test runner
 - An end-to-end HTTP/HTTPS/MCP test suite
+- MCP resources and prompts describing the safe end-to-end workflow
 
 No VB6 installation, Visual Basic runtime, or Microsoft add-in designer DLL is
 required to build or run the repository tests. A real VB6 installation is only
@@ -102,8 +107,11 @@ The suite starts the add-in core with a simulated IDE and tests:
 - HTTP and HTTPS listeners
 - bearer-token and query-token authentication
 - MCP initialize, ping, tools/list, tools/call, batching, and notifications
+- MCP resources/list/read and prompts/list/get
 - Streamable HTTP, keep-alive, chunked requests, and legacy SSE
-- project creation/opening/saving/listing/build outputs
+- project creation, one-call app scaffolding, opening/saving/listing/build outputs
+- project inspection, project-wide code search, and structural validation
+- sequential batch tool execution
 - class, module, form, and user-project file creation
 - code read/write/find/replace
 - line-level code read/edit, native `CodeModule.Find`, event creation, and
@@ -140,6 +148,47 @@ The first load creates:
 
 See `docs\DEPLOY_XP.md` for XP-specific details, firewall commands, and HTTPS.
 
+## AI / MCP quick start
+
+1. Connect your MCP client to `http://host:8765/mcp` with the bearer token from
+   `mcpaddin.ini`.
+2. Call `ide_status`.
+3. Read `vb6://guide/ai-quickstart` if your client supports resources.
+4. For a new application, call `project_scaffold` instead of creating one file
+   at a time.
+
+Minimal scaffold request:
+
+```json
+{
+  "directory": "C:\\Projects\\HelloVB6",
+  "name": "HelloVB6",
+  "title": "Hello VB6",
+  "type": "standard_exe",
+  "startup": "Sub Main",
+  "components": [
+    {
+      "kind": "module",
+      "name": "AppMain",
+      "code": "Public Sub Main()\r\n    Form1.Show\r\nEnd Sub"
+    },
+    {
+      "kind": "form",
+      "name": "Form1",
+      "title": "Hello VB6",
+      "controls": [
+        {"type": "label", "name": "lblHello", "properties": {"Caption": "Hello, VB6"}}
+      ]
+    }
+  ],
+  "build": true,
+  "buildMethod": "commandline"
+}
+```
+
+After scaffolding, use `project_inspect`, `code_search`, targeted edit tools,
+`project_validate`, and `project_build` with `method="commandline"`.
+
 ## Default endpoints
 
 ```text
@@ -170,7 +219,7 @@ The INI file is read on add-in load. A complete example is
 | `bindAddress` | `0.0.0.0` for remote access, `127.0.0.1` for local only |
 | `httpPort` / `httpsPort` | Listener ports |
 | `enableHttp` / `enableHttps` | Transport switches |
-| `authToken` | Bearer token; generated automatically if empty |
+| `token` | Bearer token; generated automatically if empty |
 | `allowQueryToken` | Permit `?token=...`; off by default |
 | `corsOrigin` | `*` or an exact allowed browser origin; blank disables CORS |
 | `maxBodyBytes` | Request body cap (default 16 MiB) |
@@ -188,6 +237,8 @@ roots. `source_*` tools never accept arbitrary paths outside those roots.
 See `docs\MCP_TOOLS.md` for the generated schema reference. The functional
 groups are:
 
+- Orchestration: one-call `project_scaffold`, project-wide `project_inspect`,
+  structural `project_validate`, and sequential `vb6_batch`
 - IDE: detailed status/add-in discovery, windows, code panes, active project,
   CommandBar execution
 - Projects: create, open, close, save, inspect, set automation properties,
@@ -195,8 +246,9 @@ groups are:
 - Components: add built-in/designer components, import files, create files,
   remove, rename, export, list, inspect, enumerate component properties,
   read/write property-bag values, activate/reload/save-as/open designer
-- Code: read, replace, find/replace, line-range read/edit, native find with
-  positions, event-procedure creation, member/structure discovery
+- Code: read, replace, find/replace, project-wide search, line-range read/edit,
+  native find with positions, event-procedure creation, member/structure
+  discovery
 - Code panes: list, focus/show, selection, and top-line scrolling
 - Windows: list captions/types/bounds and focus/show/hide/close/move/state/kind/
   detach actions
@@ -204,6 +256,18 @@ groups are:
   set properties, control arrays
 - References: list/add/remove
 - Source files: allow-root-constrained read/write/edit/list
+
+### MCP resources
+
+| URI | Purpose |
+|---|---|
+| `vb6://guide/ai-quickstart` | First-read workflow, golden paths, and VB6 rules |
+| `vb6://guide/build-complete-app` | Full `project_scaffold` manifest and build flow |
+| `vb6://guide/designer-compatibility` | CodeModule vs designer text, reloads, FRX |
+| `vb6://reference/tool-groups` | Tool families and recommended workflow |
+
+MCP prompts include `create-vb6-app`, `inspect-and-extend-vb6-app`,
+`fix-vb6-build`, and `create-vb6-form`.
 
 `examples\mcp_client.py` is a minimal client:
 
@@ -305,7 +369,7 @@ MCPAddin/
   bin/                 compiled DLL and test runner
   src/                 production C++ sources
   tests/               simulated IDE and end-to-end tests
-  docs/                protocol, XP deployment, generated tools
+  docs/                AI guide, protocol, XP deployment, generated tools
   build.ps1/.cmd       reproducible build
   install.cmd          per-user COM/add-in registration
   uninstall.cmd        cleanup
