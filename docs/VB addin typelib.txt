@@ -1,0 +1,1245 @@
+enum vbext_CodePaneview
+{
+   vbext_cv_ProcedureView = 0,
+   vbext_cv_FullModuleView = 1,
+}
+
+enum vbext_ComponentType
+{
+   vbext_ct_StdModule = 1,
+   vbext_ct_ClassModule = 2,
+   vbext_ct_MSForm = 3,
+   vbext_ct_ResFile = 4,
+   vbext_ct_VBForm = 5,
+   vbext_ct_VBMDIForm = 6,
+   vbext_ct_PropPage = 7,
+   vbext_ct_UserControl = 8,
+   vbext_ct_DocObject = 9,
+   vbext_ct_RelatedDocument = 10,
+   vbext_ct_ActiveXDesigner = 11,
+}
+
+enum vbext_ConnectMode
+{
+   vbext_cm_AfterStartup = 0,
+   vbext_cm_Startup = 1,
+   vbext_cm_External = 2,
+}
+
+enum vbext_ControlType
+{
+   vbext_ct_Light = 1,
+   vbext_ct_Standard = 2,
+   vbext_ct_Container = 3,
+}
+
+enum vbext_DisconnectMode
+{
+   vbext_dm_HostShutdown = 0,
+   vbext_dm_UserClosed = 1,
+}
+
+enum vbext_FileType
+{
+   vbext_ft_Form = 0,
+   vbext_ft_Module = 1,
+   vbext_ft_Class = 2,
+   vbext_ft_Project = 3,
+   vbext_ft_Exe = 4,
+   vbext_ft_Frx = 5,
+   vbext_ft_Res = 6,
+   vbext_ft_UserControl = 7,
+   vbext_ft_PropertyPage = 8,
+   vbext_ft_DocObject = 9,
+   vbext_ft_Binary = 10,
+   vbext_ft_GroupProject = 11,
+   vbext_ft_Designers = 12,
+}
+
+enum vbext_MemberType
+{
+   vbext_mt_Method = 1,
+   vbext_mt_Property = 2,
+   vbext_mt_Variable = 3,
+   vbext_mt_Event = 4,
+   vbext_mt_Const = 5,
+}
+
+enum vbext_ProcKind
+{
+   vbext_pk_Proc = 0,
+   vbext_pk_Let = 1,
+   vbext_pk_Set = 2,
+   vbext_pk_Get = 3,
+}
+
+enum vbext_ProjectStartMode
+{
+   vbext_psm_StandAlone = 0,
+   vbext_psm_OleServer = 1,
+}
+
+enum vbext_ProjectType
+{
+   vbext_pt_StandardExe = 0,
+   vbext_pt_ActiveXExe = 1,
+   vbext_pt_ActiveXDll = 2,
+   vbext_pt_ActiveXControl = 3,
+}
+
+enum vbext_RefKind
+{
+   vbext_rk_TypeLib = 0,
+   vbext_rk_Project = 1,
+}
+
+enum vbext_Scope
+{
+   vbext_Private = 1,
+   vbext_Public = 2,
+   vbext_Friend = 3,
+}
+
+enum vbext_StartupObject
+{
+   vbext_so_SubMain = 0,
+   vbext_so_None = 1,
+}
+
+enum vbext_VBADisplayModel
+{
+   vbext_dm_SDI = 0,
+   vbext_dm_MDI = 1,
+}
+
+enum vbext_VBAMode
+{
+   vbext_vm_Run = 0,
+   vbext_vm_Break = 1,
+   vbext_vm_Design = 2,
+}
+
+enum vbext_WindowState
+{
+   vbext_ws_Normal = 0,
+   vbext_ws_Minimize = 1,
+   vbext_ws_Maximize = 2,
+}
+
+enum vbext_WindowType
+{
+   vbext_wt_CodeWindow = 0,
+   vbext_wt_Designer = 1,
+   vbext_wt_Browser = 2,
+   vbext_wt_Watch = 3,
+   vbext_wt_Locals = 4,
+   vbext_wt_Immediate = 5,
+   vbext_wt_ProjectWindow = 6,
+   vbext_wt_PropertyWindow = 7,
+   vbext_wt_Find = 8,
+   vbext_wt_FindReplace = 9,
+   vbext_wt_Toolbox = 10,
+   vbext_wt_LinkedWindowFrame = 11,
+   vbext_wt_MainWindow = 12,
+   vbext_wt_Preview = 13,
+   vbext_wt_ColorPalette = 14,
+   vbext_wt_ToolWindow = 15,
+}
+
+enum vbextDisconnectMode
+{
+   vbextHostShutdown = 0,
+   vbextUserClosed = 1,
+}
+
+enum vbextFileTypes
+{
+   vbextFileTypeForm = 0,
+   vbextFileTypeModule = 1,
+   vbextFileTypeClass = 2,
+   vbextFileTypeProject = 3,
+   vbextFileTypeExe = 4,
+   vbextFileTypeFrx = 5,
+   vbextFileTypeRes = 6,
+   vbextFileTypeUserControl = 7,
+   vbextFileTypePropertyPage = 8,
+   vbextFileTypeDocObject = 9,
+   vbextFileTypeBinary = 10,
+   vbextFileTypeGroupProject = 11,
+   vbextFileTypeDesigners = 12,
+}
+
+enum vbextMenuShortcut
+{
+   vbextMenuShortcutCtrlA = 1,
+   vbextMenuShortcutCtrlB = 2,
+   vbextMenuShortcutCtrlC = 3,
+   vbextMenuShortcutCtrlD = 4,
+   vbextMenuShortcutCtrlE = 5,
+   vbextMenuShortcutCtrlF = 6,
+   vbextMenuShortcutCtrlG = 7,
+   vbextMenuShortcutCtrlH = 8,
+   vbextMenuShortcutCtrlI = 9,
+   vbextMenuShortcutCtrlJ = 10,
+   vbextMenuShortcutCtrlK = 11,
+   vbextMenuShortcutCtrlL = 12,
+   vbextMenuShortcutCtrlM = 13,
+   vbextMenuShortcutCtrlN = 14,
+   vbextMenuShortcutCtrlO = 15,
+   vbextMenuShortcutCtrlP = 16,
+   vbextMenuShortcutCtrlQ = 17,
+   vbextMenuShortcutCtrlR = 18,
+   vbextMenuShortcutCtrlS = 19,
+   vbextMenuShortcutCtrlT = 20,
+   vbextMenuShortcutCtrlU = 21,
+   vbextMenuShortcutCtrlV = 22,
+   vbextMenuShortcutCtrlW = 23,
+   vbextMenuShortcutCtrlX = 24,
+   vbextMenuShortcutCtrlY = 25,
+   vbextMenuShortcutCtrlZ = 26,
+   vbextMenuShortcutF1 = 27,
+   vbextMenuShortcutF2 = 28,
+   vbextMenuShortcutF3 = 29,
+   vbextMenuShortcutF4 = 30,
+   vbextMenuShortcutF5 = 31,
+   vbextMenuShortcutF6 = 32,
+   vbextMenuShortcutF7 = 33,
+   vbextMenuShortcutF8 = 34,
+   vbextMenuShortcutF9 = 35,
+   vbextMenuShortcutF11 = 37,
+   vbextMenuShortcutF12 = 38,
+   vbextMenuShortcutCtrlF1 = 39,
+   vbextMenuShortcutCtrlF2 = 40,
+   vbextMenuShortcutCtrlF3 = 41,
+   vbextMenuShortcutCtrlF4 = 42,
+   vbextMenuShortcutCtrlF5 = 43,
+   vbextMenuShortcutCtrlF6 = 44,
+   vbextMenuShortcutCtrlF7 = 45,
+   vbextMenuShortcutCtrlF8 = 46,
+   vbextMenuShortcutCtrlF9 = 47,
+   vbextMenuShortcutCtrlF11 = 49,
+   vbextMenuShortcutCtrlF12 = 50,
+   vbextMenuShortcutShiftF1 = 51,
+   vbextMenuShortcutShiftF2 = 52,
+   vbextMenuShortcutShiftF3 = 53,
+   vbextMenuShortcutShiftF4 = 54,
+   vbextMenuShortcutShiftF5 = 55,
+   vbextMenuShortcutShiftF6 = 56,
+   vbextMenuShortcutShiftF7 = 57,
+   vbextMenuShortcutShiftF8 = 58,
+   vbextMenuShortcutShiftF9 = 59,
+   vbextMenuShortcutShiftF11 = 61,
+   vbextMenuShortcutShiftF12 = 62,
+   vbextMenuShortcutCtrlShiftF1 = 63,
+   vbextMenuShortcutCtrlShiftF2 = 64,
+   vbextMenuShortcutCtrlShiftF3 = 65,
+   vbextMenuShortcutCtrlShiftF4 = 66,
+   vbextMenuShortcutCtrlShiftF5 = 67,
+   vbextMenuShortcutCtrlShiftF6 = 68,
+   vbextMenuShortcutCtrlShiftF7 = 69,
+   vbextMenuShortcutCtrlShiftF8 = 70,
+   vbextMenuShortcutCtrlShiftF9 = 71,
+   vbextMenuShortcutCtrlShiftF11 = 73,
+   vbextMenuShortcutCtrlShiftF12 = 74,
+   vbextMenuShortcutCtrlIns = 75,
+   vbextMenuShortcutShiftIns = 76,
+   vbextMenuShortcutDel = 77,
+   vbextMenuShortcutShiftDel = 78,
+   vbextMenuShortcutAltBksp = 79,
+}
+
+enum vbextSCCStatus
+{
+   vbextSCCStatusNotControlled = 0,
+   vbextSCCStatusControlled = 1,
+   vbextSCCStatusCheckedOut = 2,
+   vbextSCCStatusOutOther = 4,
+   vbextSCCStatusOutOfDate = 32,
+   vbextSCCStatusShared = 512,
+}
+
+enum vbextWrite
+{
+   vbextWriteSuccess = 0,
+   vbextWriteCancelled = 1,
+   vbextWriteFailed = 2,
+}
+
+
+
+
+[Guid("0002e109-0000-0000-c000-000000000046")]
+interface _AddIns
+{
+   /* Methods */
+   AddIn Item(object Index);
+   IEnumerator GetEnumerator();
+   void Update();
+   /* Properties */
+   VBE VBE { get; }
+   VBE Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e16d-0000-0000-c000-000000000046")]
+interface _CodeModule
+{
+   /* Methods */
+   void AddFromString(string String);
+   void AddFromFile(string FileName);
+   void InsertLines(int Line, string String);
+   void DeleteLines(int StartLine, [Optional] int Count);
+   void ReplaceLine(int Line, string String);
+   int CreateEventProc(string EventName, string ObjectName);
+   bool Find(string Target, [Out,In] Int32& StartLine, [Out,In] Int32& StartColumn, [Out,In] Int32& EndLine, [Out,In] Int32& EndColumn, [Optional] bool WholeWord, [Optional] bool MatchCase, [Optional] bool PatternSearch);
+   /* Properties */
+   VBComponent Parent { get; }
+   VBE VBE { get; }
+   string Name { get; set; }
+   string Lines(int StartLine, int Count) { get; }
+   int CountOfLines { get; }
+   int ProcStartLine(string ProcName, vbext_ProcKind ProcKind) { get; }
+   int ProcCountLines(string ProcName, vbext_ProcKind ProcKind) { get; }
+   int ProcBodyLine(string ProcName, vbext_ProcKind ProcKind) { get; }
+   string ProcOfLine(int Line, [Out] vbext_ProcKind& ProcKind) { get; }
+   int CountOfDeclarationLines { get; }
+   CodePane CodePane { get; }
+   Members Members { get; }
+}
+
+[Guid("0002e175-0000-0000-c000-000000000046")]
+interface _CodePane
+{
+   /* Methods */
+   void GetSelection([Out] Int32& StartLine, [Out] Int32& StartColumn, [Out] Int32& EndLine, [Out] Int32& EndColumn);
+   void SetSelection(int StartLine, int StartColumn, int EndLine, int EndColumn);
+   void Show();
+   /* Properties */
+   CodePanes Collection { get; }
+   VBE VBE { get; }
+   Window Window { get; }
+   int TopLine { get; set; }
+   int CountOfVisibleLines { get; }
+   CodeModule CodeModule { get; }
+   vbext_CodePaneview CodePaneView { get; }
+}
+
+[Guid("0002e171-0000-0000-c000-000000000046")]
+interface _CodePanes
+{
+   /* Methods */
+   CodePane Item(object Index);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   VBE Parent { get; }
+   VBE VBE { get; }
+   int Count { get; }
+   CodePane Current { get; set; }
+}
+
+[Guid("0002e197-0000-0000-c000-000000000046")]
+interface _CommandBarControlEvents
+{
+}
+
+[Guid("ef404e1f-eda6-101a-8daf-00dd010f7ebb")]
+interface _Component
+{
+   /* Methods */
+   bool SaveAs(string NewFileName);
+   void InsertFile(string FileName);
+   void Reload();
+   /* Properties */
+   Application Application { get; }
+   Components Parent { get; }
+   bool IsDirty { get; set; }
+   string FileNames(short Index) { get; }
+   short FileCount { get; }
+   int IconState { get; set; }
+   string Name { get; set; }
+}
+
+[Guid("2f3304a0-1602-11ce-bfdc-08002b2b8cda")]
+interface _Components
+{
+   /* Methods */
+   Component Item(object Index);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   Application Application { get; }
+   ProjectTemplate Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e11e-0000-0000-c000-000000000046")]
+interface _ContainedVBControls
+{
+   /* Methods */
+   VBControl Item(object CollectionIndex, [Optional] object ControlIndex);
+   VBControl Add(string ProgId, [Optional] VBControl RelativeVBControl, [Optional] bool before);
+   void Remove(VBControl lpcontrol);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   VBE VBE { get; }
+   object Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e12a-0000-0000-c000-000000000046")]
+interface _ContainedVBControlsEvents
+{
+}
+
+[Guid("0002e198-0000-0000-c000-000000000046")]
+interface _dispCommandBarControlEvents
+{
+   /* Methods */
+   void Click(object CommandBarControl, Boolean& handled, Boolean& CancelDefault);
+}
+
+[Guid("0002e122-0000-0000-c000-000000000046")]
+interface _dispContainedVBControlsEvents
+{
+   /* Methods */
+   void ItemAdded(VBControl VBControl);
+   void ItemRemoved(VBControl VBControl);
+   void ItemRenamed(VBControl VBControl, string OldName, int OldIndex);
+}
+
+[Guid("0002e19a-0000-0000-c000-000000000046")]
+interface _dispReferences_Events
+{
+   /* Methods */
+   void ItemAdded(Reference Reference);
+   void ItemRemoved(Reference Reference);
+}
+
+[Guid("0002e194-0000-0000-c000-000000000046")]
+interface _dispReferencesEvents
+{
+   /* Methods */
+   void ItemAdded(Reference Reference);
+   void ItemRemoved(Reference Reference);
+}
+
+[Guid("0002e125-0000-0000-c000-000000000046")]
+interface _dispSelectedVBControlsEvents
+{
+   /* Methods */
+   void ItemAdded(VBControl VBControl);
+   void ItemRemoved(VBControl VBControl);
+}
+
+[Guid("cc62ad82-99ee-11d1-b6e0-00a0c90f2744")]
+interface _dispVBBuildEvents
+{
+   /* Methods */
+   void BeginCompile(VBProject VBProject);
+   void EnterRunMode();
+   void EnterDesignMode();
+}
+
+[Guid("0002e193-0000-0000-c000-000000000046")]
+interface _dispVBComponentsEvents
+{
+   /* Methods */
+   void ItemAdded(VBComponent VBComponent);
+   void ItemRemoved(VBComponent VBComponent);
+   void ItemRenamed(VBComponent VBComponent, string OldName);
+   void ItemSelected(VBComponent VBComponent);
+   void ItemActivated(VBComponent VBComponent);
+   void ItemReloaded(VBComponent VBComponent);
+}
+
+[Guid("0002e141-0000-0000-c000-000000000046")]
+interface _dispVBFileControlEvents
+{
+   /* Methods */
+   void AfterAddFile(VBProject VBProject, vbext_FileType FileType, string FileName);
+   void AfterChangeFileName(VBProject VBProject, vbext_FileType FileType, string NewName, string OldName);
+   void AfterCloseFile(VBProject VBProject, vbext_FileType FileType, string FileName, bool WasDirty);
+   void AfterWriteFile(VBProject VBProject, vbext_FileType FileType, string FileName, short Result);
+   void AfterRemoveFile(VBProject VBProject, vbext_FileType FileType, string FileName);
+   void BeforeLoadFile(VBProject VBProject, String[]& FileNames);
+   void DoGetNewFileName(VBProject VBProject, vbext_FileType FileType, [Out,In] String& NewName, string OldName, [Out] Boolean& CancelDefault);
+   void RequestChangeFileName(VBProject VBProject, vbext_FileType FileType, string NewName, string OldName, [Out] Boolean& Cancel);
+   void RequestWriteFile(VBProject VBProject, string FileName, [Out] Boolean& Cancel);
+}
+
+[Guid("0002e190-0000-0000-c000-000000000046")]
+interface _dispVBProjectsEvents
+{
+   /* Methods */
+   void ItemAdded(VBProject VBProject);
+   void ItemRemoved(VBProject VBProject);
+   void ItemRenamed(VBProject VBProject, string OldName);
+   void ItemActivated(VBProject VBProject);
+}
+
+[Guid("ef404e08-eda6-101a-8daf-00dd010f7ebb")]
+interface _FileControl
+{
+   /* Methods */
+   int ConnectEvents(object pdspSink);
+   void DisconnectEvents(int hConnection);
+   /* Properties */
+   Application Application { get; }
+   Application Parent { get; }
+}
+
+[Guid("ef404e0a-eda6-101a-8daf-00dd010f7ebb")]
+interface _FileControlEvents
+{
+   /* Methods */
+   void AfterAddFile(string FileName);
+   void AfterChangeFileName(short FileType, string NewName, string OldName);
+   void AfterCloseFile(String[] FileNames);
+   void AfterWriteFile(string FileName, short Result);
+   void AfterRemoveFile(string FileName);
+   void BeforeLoadFile(String[] FileNames);
+   void DoGetAddFileName([Out,In] String[] FileNames, [Out] Boolean& CancelDefault);
+   void DoGetNewFileName(short FileType, [Out,In] String& NewName, string OldName, [Out] Boolean& CancelDefault);
+   void DoGetOpenProjectName([Out,In] String& ProjectName, [Out] Boolean& CancelDefault);
+   void RequestChangeFileName(short FileType, string NewName, string OldName, [Out] Boolean& Cancel);
+   void RequestWriteFile(string FileName, [Out] Boolean& Cancel);
+   void AfterNewProject(string ProjectName);
+}
+
+[Guid("0002e10f-0000-0000-c000-000000000046")]
+interface _LinkedWindows
+{
+   /* Methods */
+   Window Item(object Index);
+   IEnumerator GetEnumerator();
+   void Remove(Window Window);
+   void Add(Window Window);
+   /* Properties */
+   VBE VBE { get; }
+   Window Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e180-0000-0000-c000-000000000046")]
+interface _Members
+{
+   /* Methods */
+   Member Item(object var);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   CodeModule Parent { get; }
+   VBE VBE { get; }
+   int Count { get; }
+}
+
+[Guid("ef404e18-eda6-101a-8daf-00dd010f7ebb")]
+interface _MenuLine
+{
+   /* Methods */
+   int ConnectEvents(object pdspSink);
+   void DisconnectEvents(int hConnection);
+   /* Properties */
+   string Caption { get; set; }
+   Application Application { get; }
+   MenuItems Parent { get; }
+   bool Enabled { get; set; }
+   bool Checked { get; set; }
+   int HelpContextID { get; set; }
+   string HelpFile { get; set; }
+}
+
+[Guid("ef404e22-eda6-101a-8daf-00dd010f7ebb")]
+interface _ProjectTemplate
+{
+   /* Methods */
+   string AddFile(string FileName);
+   bool RemoveComponent(Component Comp, bool Save);
+   void AddReference([Optional] object Guid, [Optional] object VerMajor, [Optional] object VerMinor, [Optional] object FileName);
+   void AddToolboxTypelib(string Guid, short MajorVersion, short MinorVersion, [Optional] object FileName);
+   void AddToolboxProgID(string ProgId, [Optional] object FileName);
+   void AddToolboxVBX(string FileName);
+   FormTemplate AddFormTemplate();
+   FormTemplate AddMDIFormTemplate();
+   void WriteProperty(string Section, string Key, string Value);
+   string ReadProperty(string Section, string Key);
+   int ConnectEvents(object pdspSink);
+   void DisconnectEvents(int hConnection);
+   /* Properties */
+   FormTemplate ActiveForm { get; }
+   Application Application { get; }
+   Application Parent { get; }
+   SelectedComponents SelectedComponents { get; }
+   string FileName { get; }
+   bool IsDirty { get; set; }
+   Components Components { get; }
+}
+
+[Guid("0002e189-0000-0000-c000-000000000046")]
+interface _Properties
+{
+   /* Methods */
+   Property Item(object Index);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   object Application { get; }
+   object Parent { get; }
+   int Count { get; }
+   VBE VBE { get; }
+}
+
+[Guid("0002e179-0000-0000-c000-000000000046")]
+interface _References
+{
+   /* Methods */
+   Reference Item(object Index);
+   IEnumerator GetEnumerator();
+   Reference AddFromGuid(string Guid, int Major, int Minor);
+   Reference AddFromFile(string FileName);
+   void Remove(Reference Reference);
+   /* Properties */
+   VBProject Parent { get; }
+   VBE VBE { get; }
+   int Count { get; }
+}
+
+[Guid("0002e195-0000-0000-c000-000000000046")]
+interface _ReferencesEvents
+{
+}
+
+[Guid("0002e124-0000-0000-c000-000000000046")]
+interface _SelectedControls
+{
+   /* Methods */
+   VBControl Item(object CollectionIndex, [Optional] object ControlIndex);
+   IEnumerator GetEnumerator();
+   int Clear();
+   void Cut();
+   void Copy();
+   /* Properties */
+   VBE VBE { get; }
+   VBForm Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e12c-0000-0000-c000-000000000046")]
+interface _SelectedVBControlsEvents
+{
+}
+
+[Guid("cc62ad81-99ee-11d1-b6e0-00a0c90f2744")]
+interface _VBBuildEvents
+{
+}
+
+[Guid("0002e148-0000-0000-c000-000000000046")]
+interface _VBComponent
+{
+   /* Methods */
+   bool SaveAs(string NewFileName);
+   void InsertFile(string FileName);
+   void Reload();
+   Window DesignerWindow();
+   string ReadProperty(string Key);
+   void WriteProperty(string Key, string Value);
+   void Activate();
+   /* Properties */
+   bool IsDirty { get; set; }
+   string FileNames(short Index) { get; }
+   short FileCount { get; }
+   int IconState { get; set; }
+   string Name { get; set; }
+   object Designer { get; }
+   CodeModule CodeModule { get; }
+   vbext_ComponentType Type { get; }
+   VBE VBE { get; }
+   VBComponents Collection { get; }
+   bool HasOpenDesigner { get; }
+   Properties Properties { get; }
+   int HelpContextID { get; set; }
+   string Description { get; set; }
+   string DesignerID { get; }
+}
+
+[Guid("0002e147-0000-0000-c000-000000000046")]
+interface _VBComponents
+{
+   /* Methods */
+   VBComponent Item(object Index);
+   IEnumerator GetEnumerator();
+   void Remove(VBComponent VBComponent);
+   VBComponent Add(vbext_ComponentType ComponentType);
+   VBComponent AddFile(string FileName, [Optional] bool RelatedDocuement);
+   VBComponent AddFromTemplate(string FileName);
+   VBComponent AddCustom(string ProgId);
+   /* Properties */
+   VBProject Parent { get; }
+   int Count { get; }
+   VBE VBE { get; }
+   object StartUpObject { get; set; }
+}
+
+[Guid("0002e192-0000-0000-c000-000000000046")]
+interface _VBComponentsEvents
+{
+}
+
+[Guid("0002e121-0000-0000-c000-000000000046")]
+interface _VBControls
+{
+   /* Methods */
+   VBControl Item(object CollectionIndex, [Optional] object ControlIndex);
+   VBControl Add(string ProgId, [Optional] VBControl RelativeVBControl, [Optional] bool before);
+   void Remove(VBControl lpcontrol);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   VBE VBE { get; }
+   object Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e142-0000-0000-c000-000000000046")]
+interface _VBFileControlEvents
+{
+}
+
+[Guid("0002e106-0000-0000-c000-000000000046")]
+interface _VBProject
+{
+   /* Methods */
+   void AddToolboxProgID(string ProgId, [Optional] object FileName);
+   void WriteProperty(string Section, string Key, string Value);
+   string ReadProperty(string Section, string Key);
+   void SaveAs(string FileName);
+   void MakeCompiledFile();
+   /* Properties */
+   string Name { get; set; }
+   string FileName { get; }
+   bool IsDirty { get; set; }
+   string HelpFile { get; set; }
+   int HelpContextID { get; set; }
+   string Description { get; set; }
+   References References { get; }
+   VBE VBE { get; }
+   VBProjects Collection { get; }
+   vbext_ProjectStartMode StartMode { get; set; }
+   string CompatibleOleServer { get; set; }
+   vbext_ProjectType Type { get; set; }
+   vbextSCCStatus IconState { get; set; }
+   bool Saved { get; }
+   VBComponents VBComponents { get; }
+   string BuildFileName { get; set; }
+}
+
+[Guid("0002e102-0000-0000-c000-000000000046")]
+interface _VBProjects
+{
+   /* Methods */
+   VBProject Item(object Index);
+   IEnumerator GetEnumerator();
+   VBProject Add(vbext_ProjectType Type, [Optional] bool Exclusive);
+   VBNewProjects AddFromTemplate(string PathName, [Optional] bool Exclusive);
+   VBNewProjects AddFromFile(string PathName, [Optional] bool Exclusive);
+   void Remove(VBProject lpc);
+   string FileName();
+   void SaveAs(string PathName);
+   /* Properties */
+   VBE VBE { get; }
+   VBE Parent { get; }
+   int Count { get; }
+   VBProject StartProject { get; set; }
+   vbextSCCStatus IconState { get; set; }
+}
+
+[Guid("0002e191-0000-0000-c000-000000000046")]
+interface _VBProjectsEvents
+{
+}
+
+[Guid("0002e10d-0000-0000-c000-000000000046")]
+interface _Windows
+{
+   /* Methods */
+   Window Item(object Index);
+   IEnumerator GetEnumerator();
+   Window CreateToolWindow(AddIn AddInInst, string ProgId, string Caption, string GuidPosition, [Out,In] Object& DocObj);
+   /* Properties */
+   VBE VBE { get; }
+   VBE Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e10b-0000-0000-c000-000000000046")]
+interface AddIn
+{
+   /* Properties */
+   string Description { get; set; }
+   VBE VBE { get; }
+   Addins Collection { get; }
+   string ProgId { get; }
+   string Guid { get; }
+   bool Connect { get; set; }
+   object Object { get; set; }
+}
+
+[Guid("0002e109-0000-0000-c000-000000000046")]
+interface Addins
+{
+}
+
+[Guid("ef404e01-eda6-101a-8daf-00dd010f7ebb")]
+interface Application
+{
+   /* Methods */
+   ProjectTemplate LoadProject(string FileName, bool ReplaceCurrent);
+   /* Properties */
+   string Name { get; }
+   Application Application { get; }
+   Application Parent { get; }
+   string FullName { get; }
+   string LastUsedPath { get; set; }
+   string Version { get; }
+   ProjectTemplate ActiveProject { get; }
+   FileControl FileControl { get; }
+   SubMenu AddInMenu { get; }
+   short ReadOnlyMode { get; set; }
+}
+
+[Guid("0002e16d-0000-0000-c000-000000000046")]
+interface CodeModule
+{
+}
+
+[Guid("0002e175-0000-0000-c000-000000000046")]
+interface CodePane
+{
+}
+
+[Guid("0002e171-0000-0000-c000-000000000046")]
+interface CodePanes
+{
+}
+
+[Guid("0002e197-0000-0000-c000-000000000046")]
+interface CommandBarEvents
+{
+}
+
+[Guid("ef404e1f-eda6-101a-8daf-00dd010f7ebb")]
+interface Component
+{
+}
+
+[Guid("2f3304a0-1602-11ce-bfdc-08002b2b8cda")]
+interface Components
+{
+}
+
+[Guid("0002e11e-0000-0000-c000-000000000046")]
+interface ContainedVBControls
+{
+}
+
+[Guid("79b1f922-ec2c-101a-b1f9-08002b2b8cda")]
+interface ControlTemplate
+{
+   /* Methods */
+   ControlTemplate ZOrder(int Position);
+   /* Properties */
+   string ClassName { get; }
+   Application Application { get; }
+   ControlTemplates Parent { get; }
+   object Container { get; set; }
+   Properties Properties { get; }
+}
+
+[Guid("79b1f924-ec2c-101a-b1f9-08002b2b8cda")]
+interface ControlTemplates
+{
+   /* Methods */
+   ControlTemplate Item(object Item, [Optional] object Index);
+   ControlTemplate Add(string ClassName, [Optional] object Container);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   Application Application { get; }
+   FormTemplate Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e112-0000-0000-c000-000000000046")]
+interface Events
+{
+   /* Properties */
+   VBProjectsEvents VBProjectsEvents { get; }
+   VBComponentsEvents VBComponentsEvents(VBProject VBProject) { get; }
+   ReferencesEvents ReferencesEvents(VBProject VBProject) { get; }
+   VBControlsEvents VBControlsEvents(VBProject VBProject, VBForm VBForm) { get; }
+   SelectedVBControlsEvents SelectedVBControlsEvents(VBProject VBProject, VBForm VBForm) { get; }
+   CommandBarEvents CommandBarEvents(object CommandBarControl) { get; }
+   FileControlEvents FileControlEvents(VBProject VBProject) { get; }
+}
+
+[Guid("cc62ad84-99ee-11d1-b6e0-00a0c90f2744")]
+interface Events2
+{
+   /* Properties */
+   VBProjectsEvents VBProjectsEvents { get; }
+   VBComponentsEvents VBComponentsEvents(VBProject VBProject) { get; }
+   ReferencesEvents ReferencesEvents(VBProject VBProject) { get; }
+   VBControlsEvents VBControlsEvents(VBProject VBProject, VBForm VBForm) { get; }
+   SelectedVBControlsEvents SelectedVBControlsEvents(VBProject VBProject, VBForm VBForm) { get; }
+   CommandBarEvents CommandBarEvents(object CommandBarControl) { get; }
+   FileControlEvents FileControlEvents(VBProject VBProject) { get; }
+   VBBuildEvents VBBuildEvents { get; }
+}
+
+[Guid("ef404e08-eda6-101a-8daf-00dd010f7ebb")]
+interface FileControl
+{
+}
+
+[Guid("0002e142-0000-0000-c000-000000000046")]
+interface FileControlEvents
+{
+}
+
+[Guid("79b1f921-ec2c-101a-b1f9-08002b2b8cda")]
+interface FormTemplate
+{
+   /* Methods */
+   ControlTemplate AddMenuTemplate(string Name, ControlTemplate Parent);
+   void InsertFile(string FileName);
+   /* Properties */
+   Application Application { get; }
+   ProjectTemplate Parent { get; }
+   SelectedControlTemplates SelectedControlTemplates { get; }
+   ControlTemplates ControlTemplates { get; }
+   Properties Properties { get; }
+}
+
+[Guid("0002e151-0000-0000-c000-000000000046")]
+interface IDTExtensibility
+{
+   /* Methods */
+   void OnConnection(object VBInst, vbext_ConnectMode ConnectMode, AddIn AddInInst, Object[]& custom);
+   void OnDisconnection(vbext_DisconnectMode RemoveMode, Object[]& custom);
+   void OnAddInsUpdate(Object[]& custom);
+   void OnStartupComplete(Object[]& custom);
+}
+
+[Guid("0002e10f-0000-0000-c000-000000000046")]
+interface LinkedWindows
+{
+}
+
+[Guid("0002e182-0000-0000-c000-000000000046")]
+interface Member
+{
+   /* Properties */
+   Members Collection { get; }
+   VBE VBE { get; }
+   string Name { get; }
+   vbext_MemberType Type { get; }
+   vbext_Scope Scope { get; }
+   bool Static { get; }
+   int CodeLocation { get; }
+   string Description { get; set; }
+   int HelpContextID { get; set; }
+   bool Hidden { get; set; }
+   bool Browsable { get; set; }
+   bool UIDefault { get; set; }
+   int StandardMethod { get; set; }
+   bool Bindable { get; set; }
+   bool DefaultBind { get; set; }
+   bool DisplayBind { get; set; }
+   bool RequestEdit { get; set; }
+   string Category { get; set; }
+   string PropertyPage { get; set; }
+}
+
+[Guid("0002e180-0000-0000-c000-000000000046")]
+interface Members
+{
+}
+
+[Guid("ef404e12-eda6-101a-8daf-00dd010f7ebb")]
+interface MenuItems
+{
+   /* Methods */
+   object Item(string Index);
+   IEnumerator GetEnumerator();
+   MenuLine Add(string bstrCaption);
+   SubMenu AddMenu(string bstrCaption);
+   int Remove(object MenuItem);
+   /* Properties */
+   Application Application { get; }
+   object Parent { get; }
+   int Count { get; }
+}
+
+[Guid("ef404e18-eda6-101a-8daf-00dd010f7ebb")]
+interface MenuLine
+{
+}
+
+[Guid("ef404e1a-eda6-101a-8daf-00dd010f7ebb")]
+interface MenuLineEvents
+{
+   /* Methods */
+   void AfterClick();
+}
+
+[Guid("ef404e22-eda6-101a-8daf-00dd010f7ebb")]
+interface ProjectTemplate
+{
+}
+
+[Guid("31de1170-1602-11ce-bfdc-08002b2b8cda")]
+interface ProjectTemplateEvents
+{
+   /* Methods */
+   void CheckIn();
+   void CheckOut();
+   void Fetch();
+   void UncheckOut();
+}
+
+[Guid("0002e189-0000-0000-c000-000000000046")]
+interface Properties
+{
+}
+
+[Guid("0002e18d-0000-0000-c000-000000000046")]
+interface Property
+{
+   /* Properties */
+   object Value { get; set; }
+   object IndexedValue(object Index1, [Optional] object Index2, [Optional] object Index3, [Optional] object Index4) { get; set; }
+   short NumIndices { get; }
+   object Application { get; }
+   Properties Parent { get; }
+   string Name { get; }
+   VBE VBE { get; }
+   Properties Collection { get; }
+   object Object { get; set; }
+}
+
+[Guid("0002e17d-0000-0000-c000-000000000046")]
+interface Reference
+{
+   /* Properties */
+   References Collection { get; }
+   VBE VBE { get; }
+   string Name { get; }
+   string Guid { get; }
+   int Major { get; }
+   int Minor { get; }
+   string FullPath { get; }
+   bool BuiltIn { get; }
+   bool IsBroken { get; }
+   vbext_RefKind Type { get; }
+   string Description { get; }
+}
+
+[Guid("0002e179-0000-0000-c000-000000000046")]
+interface References
+{
+}
+
+[Guid("0002e195-0000-0000-c000-000000000046")]
+interface ReferencesEvents
+{
+}
+
+[Guid("ef404e1c-eda6-101a-8daf-00dd010f7ebb")]
+interface SelectedComponents
+{
+   /* Methods */
+   Component Item(int Index);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   Application Application { get; }
+   VBProject Parent { get; }
+   int Count { get; }
+}
+
+[Guid("79b1f926-ec2c-101a-b1f9-08002b2b8cda")]
+interface SelectedControlTemplates
+{
+   /* Methods */
+   ControlTemplate Item(int Item);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   Application Application { get; }
+   FormTemplate Parent { get; }
+   int Count { get; }
+}
+
+[Guid("0002e124-0000-0000-c000-000000000046")]
+interface SelectedVBControls
+{
+}
+
+[Guid("0002e12c-0000-0000-c000-000000000046")]
+interface SelectedVBControlsEvents
+{
+}
+
+[Guid("ef404e15-eda6-101a-8daf-00dd010f7ebb")]
+interface SubMenu
+{
+   /* Properties */
+   MenuItems MenuItems { get; }
+   Application Application { get; }
+   MenuItems Parent { get; }
+   string Caption { get; set; }
+   bool Enabled { get; set; }
+}
+
+[Guid("cc62ad81-99ee-11d1-b6e0-00a0c90f2744")]
+interface VBBuildEvents
+{
+}
+
+[Guid("0002e148-0000-0000-c000-000000000046")]
+interface VBComponent
+{
+}
+
+[Guid("0002e147-0000-0000-c000-000000000046")]
+interface VBComponents
+{
+}
+
+[Guid("0002e192-0000-0000-c000-000000000046")]
+interface VBComponentsEvents
+{
+}
+
+[Guid("0002e11d-0000-0000-c000-000000000046")]
+interface VBControl
+{
+   /* Methods */
+   VBControl ZOrder(int Position);
+   /* Properties */
+   string ClassName { get; }
+   VBE VBE { get; }
+   VBControls Collection { get; }
+   object Container { get; set; }
+   Properties Properties { get; }
+   ContainedVBControls ContainedVBControls { get; }
+   bool InSelection { get; set; }
+   object ControlObject { get; }
+   vbext_ControlType ControlType { get; }
+   string ProgId { get; }
+   object WizardHook { get; }
+}
+
+[Guid("0002e121-0000-0000-c000-000000000046")]
+interface VBControls
+{
+}
+
+[Guid("0002e12a-0000-0000-c000-000000000046")]
+interface VBControlsEvents
+{
+}
+
+[Guid("0002e100-0000-0000-c000-000000000046")]
+interface VBE
+{
+   /* Methods */
+   void Quit();
+   /* Properties */
+   string Name { get; }
+   string FullName { get; }
+   string LastUsedPath { get; set; }
+   string Version { get; }
+   short ReadOnlyMode { get; set; }
+   VBProjects VBProjects { get; }
+   CommandBars CommandBars { get; }
+   CodePanes CodePanes { get; }
+   Windows Windows { get; }
+   Events Events { get; }
+   Addins Addins { get; }
+   VBProject ActiveVBProject { get; set; }
+   VBComponent SelectedVBComponent { get; }
+   string TemplatePath { get; }
+   Window MainWindow { get; }
+   Window ActiveWindow { get; }
+   CodePane ActiveCodePane { get; set; }
+   vbext_VBADisplayModel DisplayModel { get; set; }
+   Addins Reserved0 { get; }
+}
+
+[Guid("0002e11b-0000-0000-c000-000000000046")]
+interface VBForm
+{
+   /* Methods */
+   void Paste();
+   int SelectAll();
+   /* Properties */
+   VBE VBE { get; }
+   VBComponent Parent { get; }
+   ContainedVBControls ContainedVBControls { get; }
+   SelectedVBControls SelectedVBControls { get; }
+   bool CanPaste { get; }
+   VBControls VBControls { get; }
+}
+
+[Guid("0002e133-0000-0000-c000-000000000046")]
+interface VBNewProjects
+{
+   /* Methods */
+   VBProject Item(object Index);
+   IEnumerator GetEnumerator();
+   /* Properties */
+   VBE VBE { get; }
+   int Count { get; }
+}
+
+[Guid("0002e106-0000-0000-c000-000000000046")]
+interface VBProject
+{
+}
+
+[Guid("0002e102-0000-0000-c000-000000000046")]
+interface VBProjects
+{
+}
+
+[Guid("0002e191-0000-0000-c000-000000000046")]
+interface VBProjectsEvents
+{
+}
+
+[Guid("0002e10e-0000-0000-c000-000000000046")]
+interface Window
+{
+   /* Methods */
+   void Close();
+   void SetFocus();
+   void SetKind(vbext_WindowType eKind);
+   void Detach();
+   void Attach(int lWindowHandle);
+   /* Properties */
+   VBE VBE { get; }
+   Windows Collection { get; }
+   string Caption { get; }
+   bool Visible { get; set; }
+   int Left { get; set; }
+   int Top { get; set; }
+   int Width { get; set; }
+   int Height { get; set; }
+   vbext_WindowState WindowState { get; set; }
+   vbext_WindowType Type { get; }
+   LinkedWindows LinkedWindows { get; }
+   Window LinkedWindowFrame { get; }
+   int HWnd { get; }
+}
+
+[Guid("0002e10d-0000-0000-c000-000000000046")]
+interface Windows
+{
+}
+
+
