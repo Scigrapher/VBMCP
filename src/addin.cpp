@@ -381,62 +381,65 @@ bool RegisterAddin(bool add) {
     std::wstring clsid = GuidToString(kAddinClsid);
     std::wstring clsidKey = L"CLSID\\" + clsid;
     std::wstring progIdKey = kProgId;
+    std::wstring machineClassesKey = L"Software\\Classes\\";
+    std::wstring machineAddinKey =
+        L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect";
     if (!add) {
         DeleteRegistryTree(HKEY_CURRENT_USER, L"Software\\Classes\\" + clsidKey);
         DeleteRegistryTree(HKEY_CURRENT_USER, L"Software\\Classes\\" + progIdKey);
         DeleteRegistryTree(HKEY_CLASSES_ROOT, clsidKey);
         DeleteRegistryTree(HKEY_CLASSES_ROOT, progIdKey);
-        DeleteRegistryTree(HKEY_LOCAL_MACHINE,
-                           L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect");
+        DeleteRegistryTree(HKEY_LOCAL_MACHINE, machineAddinKey);
         DeleteRegistryTree(HKEY_CURRENT_USER,
                            L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect");
         DeleteRegistryTree(HKEY_CURRENT_USER,
                            L"SOFTWARE\\Microsoft\\VisualStudio\\6.0\\Addins\\MCPAddin.Connect");
         return true;
     }
-    bool ok = true;
+    bool userOk = true;
     std::wstring userClsidKey = L"Software\\Classes\\" + clsidKey;
     std::wstring userProgIdKey = L"Software\\Classes\\" + progIdKey;
-    ok = SetRegistryString(HKEY_CURRENT_USER, userClsidKey, NULL, modulePath) && ok;
-    ok = SetRegistryString(HKEY_CURRENT_USER, userClsidKey + L"\\InprocServer32", NULL, modulePath) && ok;
-    ok = SetRegistryString(HKEY_CURRENT_USER, userClsidKey + L"\\InprocServer32", L"ThreadingModel", L"Apartment") && ok;
-    ok = SetRegistryString(HKEY_CURRENT_USER, userProgIdKey, NULL, kProgId) && ok;
-    ok = SetRegistryString(HKEY_CURRENT_USER, userProgIdKey + L"\\CLSID", NULL, clsid) && ok;
+    userOk = SetRegistryString(HKEY_CURRENT_USER, userClsidKey, NULL, modulePath) && userOk;
+    userOk = SetRegistryString(HKEY_CURRENT_USER, userClsidKey + L"\\InprocServer32", NULL, modulePath) && userOk;
+    userOk = SetRegistryString(HKEY_CURRENT_USER, userClsidKey + L"\\InprocServer32", L"ThreadingModel", L"Apartment") && userOk;
+    userOk = SetRegistryString(HKEY_CURRENT_USER, userProgIdKey, NULL, kProgId) && userOk;
+    userOk = SetRegistryString(HKEY_CURRENT_USER, userProgIdKey + L"\\CLSID", NULL, clsid) && userOk;
 
-    // Also register machine-wide when the caller has permission. Per-user
-    // registration above keeps installation possible without elevation.
-    SetRegistryString(HKEY_CLASSES_ROOT, clsidKey, NULL, modulePath);
-    SetRegistryString(HKEY_CLASSES_ROOT, clsidKey + L"\\InprocServer32", NULL, modulePath);
-    SetRegistryString(HKEY_CLASSES_ROOT, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
-    SetRegistryString(HKEY_CLASSES_ROOT, progIdKey, NULL, kProgId);
-    SetRegistryString(HKEY_CLASSES_ROOT, progIdKey + L"\\CLSID", NULL, clsid);
-    SetRegistryString(HKEY_LOCAL_MACHINE,
-                      L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                      L"FriendlyName", L"VB6 MCP Add-in (HTTP/HTTPS)");
-    SetRegistryString(HKEY_LOCAL_MACHINE,
-                      L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                      L"Description",
-                      L"Remote Model Context Protocol server for the Visual Basic 6 IDE");
-    SetRegistryDword(HKEY_LOCAL_MACHINE,
-                     L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                     L"LoadBehavior", 3);
-    SetRegistryDword(HKEY_LOCAL_MACHINE,
-                     L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                     L"CommandLineSafe", 1);
+    // UAC-elevated processes do not load per-user COM classes. Register the
+    // 32-bit machine-wide view as well; install.cmd runs this registration
+    // elevated and verifies the HKLM entries before reporting success.
+    bool machineOk = true;
+    std::wstring machineClsidKey = machineClassesKey + clsidKey;
+    std::wstring machineProgIdKey = machineClassesKey + progIdKey;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineClsidKey, NULL, modulePath) && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineClsidKey + L"\\InprocServer32",
+                                  NULL, modulePath) && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineClsidKey + L"\\InprocServer32",
+                                  L"ThreadingModel", L"Apartment") && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineProgIdKey, NULL, kProgId) && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineProgIdKey + L"\\CLSID", NULL, clsid) && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineAddinKey,
+                                  L"FriendlyName", L"VB6 MCP Add-in (HTTP/HTTPS)") && machineOk;
+    machineOk = SetRegistryString(HKEY_LOCAL_MACHINE, machineAddinKey,
+                                  L"Description",
+                                  L"Remote Model Context Protocol server for the Visual Basic 6 IDE") && machineOk;
+    machineOk = SetRegistryDword(HKEY_LOCAL_MACHINE, machineAddinKey, L"LoadBehavior", 3) && machineOk;
+    machineOk = SetRegistryDword(HKEY_LOCAL_MACHINE, machineAddinKey, L"CommandLineSafe", 1) && machineOk;
+
     // Also write the per-user form; VB6 variants differ across installations.
-    ok = SetRegistryString(HKEY_CURRENT_USER,
-                           L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                           L"FriendlyName", L"VB6 MCP Add-in (HTTP/HTTPS)") && ok;
-    ok = SetRegistryString(HKEY_CURRENT_USER,
-                           L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                           L"Description",
-                           L"Remote Model Context Protocol server for the Visual Basic 6 IDE") && ok;
-    ok = SetRegistryDword(HKEY_CURRENT_USER,
-                          L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                          L"LoadBehavior", 3) && ok;
-    ok = SetRegistryDword(HKEY_CURRENT_USER,
-                          L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
-                          L"CommandLineSafe", 1) && ok;
+    userOk = SetRegistryString(HKEY_CURRENT_USER,
+                               L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
+                               L"FriendlyName", L"VB6 MCP Add-in (HTTP/HTTPS)") && userOk;
+    userOk = SetRegistryString(HKEY_CURRENT_USER,
+                               L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
+                               L"Description",
+                               L"Remote Model Context Protocol server for the Visual Basic 6 IDE") && userOk;
+    userOk = SetRegistryDword(HKEY_CURRENT_USER,
+                              L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
+                              L"LoadBehavior", 3) && userOk;
+    userOk = SetRegistryDword(HKEY_CURRENT_USER,
+                              L"SOFTWARE\\Microsoft\\Visual Basic\\6.0\\Addins\\MCPAddin.Connect",
+                              L"CommandLineSafe", 1) && userOk;
     // Some VB6 installations surface add-ins from the VisualStudio key.
     SetRegistryString(HKEY_CURRENT_USER,
                       L"SOFTWARE\\Microsoft\\VisualStudio\\6.0\\Addins\\MCPAddin.Connect",
@@ -451,7 +454,7 @@ bool RegisterAddin(bool add) {
     SetRegistryDword(HKEY_CURRENT_USER,
                      L"SOFTWARE\\Microsoft\\VisualStudio\\6.0\\Addins\\MCPAddin.Connect",
                      L"CommandLineSafe", 1);
-    return ok;
+    return userOk || machineOk;
 }
 
 } // namespace mcpaddin

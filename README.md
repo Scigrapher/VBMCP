@@ -56,6 +56,7 @@ Runtime:
 - Windows XP SP2+ (XP SP3 recommended), Windows Vista/7/8/10/11
 - Visual Basic 6.0 IDE
 - 32-bit COM registration
+- Machine-wide 32-bit COM registration when VB6 is run elevated
 - A token in `%APPDATA%\MCPAddin\mcpaddin.ini`
 
 Build/test:
@@ -130,14 +131,25 @@ the live VB6 backend uses. Real VBIDE automation is isolated behind
 
 ## Install
 
-Run as the user who will run VB6:
+Close any running VB6 instance before installing or reinstalling.
+
+Run:
 
 ```bat
 install.cmd
 ```
 
-Then start VB6 and enable **VB6 MCP Add-in (HTTP/HTTPS)** in
+The installer requests administrator rights by default and verifies the required
+machine-wide 32-bit COM registration. This is necessary when VB6 runs elevated:
+Windows does not activate per-user COM classes from an elevated process. Use the
+same Windows account for installation and for the elevated VB6 process so the
+per-user Add-In Manager entry is also present.
+
+Restart VB6 and enable **VB6 MCP Add-in (HTTP/HTTPS)** in
 **Add-Ins > Add-In Manager**.
+
+`install.cmd --user` performs a per-user-only installation for environments
+that never run VB6 elevated. It is not compatible with elevated VB6.
 
 The first load creates:
 
@@ -371,8 +383,9 @@ MCPAddin/
   tests/               simulated IDE and end-to-end tests
   docs/                AI guide, protocol, XP deployment, generated tools
   build.ps1/.cmd       reproducible build
-  install.cmd          per-user COM/add-in registration
-  uninstall.cmd        cleanup
+  install.cmd          elevated/per-user COM/add-in registration
+  uninstall.cmd        elevated/per-user cleanup
+  elevate.ps1          UAC elevation helper for the install scripts
   make-cert.ps1        development PFX helper
   mcpaddin.example.ini configuration reference
 ```

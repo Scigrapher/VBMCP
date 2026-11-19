@@ -16,7 +16,7 @@ IDE. It does not locate or launch VB6.
 |---|---|
 | Build | x86 DLL, OS/subsystem 5.01, reviewed XP kernel import allow-list |
 | COM | `DllGetClassObject`, `IClassFactory::CreateInstance`, `IDTExtensibility2` QI |
-| Registration | per-user CLSID/ProgID and VB6 AddIn Manager registry values |
+| Registration | per-user probe plus installer verification of 32-bit machine CLSID/ProgID and VB6 AddIn Manager values |
 | HTTP | keep-alive, chunked bodies, authentication, CORS, HEAD/health |
 | HTTPS | SChannel listener, PFX loading, TLS MCP request/response |
 | MCP | initialize, ping, tools/list, tools/call, batches, notifications |
@@ -66,9 +66,26 @@ The self-test executable also exposes non-destructive-to-source probes:
 .\bin\mcpaddin_selftest.exe --unregister-probe --addin-dll (Resolve-Path .\bin\MCPAddin.dll)
 ```
 
-These write the same per-user registry values as `install.cmd` and then remove
-them. Run the unregister probe if running the register probe on a machine where
-the add-in was not previously installed.
+These write the self-registration registry values under the current user and
+then remove them. The register probe does not validate machine-wide registration:
+that requires elevation and is verified by `install.cmd` after it invokes the
+32-bit `regsvr32.exe`.
+
+An elevated VB6 process intentionally ignores per-user COM classes. To exercise
+the production path, run `install.cmd` with administrator approval and then check
+from a 32-bit registry view:
+
+```text
+HKLM\SOFTWARE\Classes\CLSID\{7B1B6F2E-6F65-4E5F-A5B2-4B19E1B8C001}\InprocServer32
+```
+
+The value must point at `MCPAddin.dll`. The installer also verifies the
+`HKCU\Software\Microsoft\Visual Basic\6.0\Addins\MCPAddin.Connect` entry for the
+elevated account.
+
+```bat
+reg query "HKLM\SOFTWARE\Classes\CLSID\{7B1B6F2E-6F65-4E5F-A5B2-4B19E1B8C001}\InprocServer32" /ve /reg:32
+```
 
 ## Real VB6 validation
 

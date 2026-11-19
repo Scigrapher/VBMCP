@@ -18,11 +18,13 @@ are supplied by `src/compat_xp.cpp`.
 
        install.cmd
 
-   This registers the COM class under the current user's
-   `HKCU\Software\Classes` and writes the VB6 add-in entry under
+   The installer registers the COM class in the 32-bit machine view and writes
+   the VB6 add-in entry under
    `HKCU\Software\Microsoft\Visual Basic\6.0\Addins\MCPAddin.Connect`.
-   Administrator rights are only needed if you want a machine-wide
-   registration and firewall changes.
+   On UAC systems it requests administrator rights and verifies the machine
+   registration. Elevated processes do not activate per-user COM classes, so
+   the machine-wide registration is required when VB6 runs as administrator.
+   Install using the same Windows account that will run elevated VB6.
 4. Start VB6. Open **Add-Ins > Add-In Manager**, select
    **VB6 MCP Add-in (HTTP/HTTPS)** and choose **Loaded/Unloaded** and
    **Load on Startup**.
@@ -32,6 +34,9 @@ are supplied by `src/compat_xp.cpp`.
 If registration fails, make sure you used the 32-bit `regsvr32.exe`. On 64-bit
 Windows the installer selects `%WINDIR%\SysWOW64\regsvr32.exe`; on XP it uses
 `%WINDIR%\System32\regsvr32.exe`.
+
+`install.cmd --user` is available for per-user-only test environments. It does
+not work with an elevated VB6 process.
 
 ## Firewall
 
