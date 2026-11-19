@@ -129,6 +129,30 @@ factory. The simulated IDE intentionally drives the same MCP/tool pipeline that
 the live VB6 backend uses. Real VBIDE automation is isolated behind
 `ComIdeBackend`, because the task environment does not include VB6.
 
+## Continuous integration and releases
+
+The GitHub Actions workflow in `.github/workflows/build.yml` runs on pushes,
+pull requests, version tags, and manual dispatches. It:
+
+1. Builds the x86 DLL and self-test with Visual Studio 2022.
+2. Runs the complete simulated-IDE and HTTP/HTTPS/MCP test suite.
+3. Regenerates `docs\MCP_TOOLS.md` and fails if the checked-in copy is stale.
+4. Creates `dist\MCPAddin-<version>.zip` and its SHA-256 checksum.
+5. Uploads the archive as a workflow artifact.
+
+Pushing a tag that starts with `v` publishes the ZIP and checksum to a GitHub
+Release:
+
+```bat
+git tag v1.0.0
+git push origin main --tags
+```
+
+The release job uses the repository-scoped `GITHUB_TOKEN`; no additional secret
+is required. The workflow requests `contents: write` only for that release job.
+The deployment ZIP contains the DLL, self-test, installer, uninstaller,
+configuration example, README, docs, and example client.
+
 ## Install
 
 Close any running VB6 instance before installing or reinstalling.
@@ -378,11 +402,13 @@ This is a remote IDE-control service. Treat its token like a password.
 
 ```text
 MCPAddin/
+  .github/workflows/   CI build, test, packaging, and release workflow
   bin/                 compiled DLL and test runner
   src/                 production C++ sources
   tests/               simulated IDE and end-to-end tests
   docs/                AI guide, protocol, XP deployment, generated tools
   build.ps1/.cmd       reproducible build
+  package.ps1          release ZIP and checksum packaging
   install.cmd          elevated/per-user COM/add-in registration
   uninstall.cmd        elevated/per-user cleanup
   elevate.ps1          UAC elevation helper for the install scripts
