@@ -30,39 +30,31 @@ def check(condition, message):
 
 def generate_certificate(directory: Path) -> Path:
     pfx = directory / "server.pfx"
-    script = directory / "make-cert.ps1"
-    script.write_text(
-        r'''
-param([string]$Pfx)
-$ErrorActionPreference = "Stop"
-$password = ConvertTo-SecureString -String "testpass" -Force -AsPlainText
-$cert = New-SelfSignedCertificate -Type Custom -Subject "CN=localhost" `
-    -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
-    -CertStoreLocation "Cert:\CurrentUser\My" `
-    -DnsName "localhost","127.0.0.1" -NotAfter (Get-Date).AddDays(30)
-try {
-    Export-PfxCertificate -Cert $cert -FilePath $Pfx -Password $password | Out-Null
-} finally {
-    Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $cert.Thumbprint) -Force -ErrorAction SilentlyContinue
-}
-''',
-        encoding="ascii",
-    )
-    subprocess.run(
+    result = subprocess.run(
         [
             "powershell.exe",
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(script),
-            "-Pfx",
+            str(ROOT / "make-cert.ps1"),
+            "-OutFile",
             str(pfx),
+            "-Password",
+            "testpass",
+            "-ValidDays",
+            "30",
         ],
-        check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    if result.returncode != 0:
+        stdout = result.stdout.decode("utf-8", errors="replace").strip()
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise TestFailure(
+            "certificate generation failed "
+            f"(exit {result.returncode}):\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        )
     check(pfx.exists() and pfx.stat().st_size > 100, "PFX generation failed")
     return pfx
 

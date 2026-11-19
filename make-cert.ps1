@@ -7,19 +7,55 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$cert = New-SelfSignedCertificate -Type Custom -Subject $Subject `
-    -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
-    -CertStoreLocation "Cert:\CurrentUser\My" `
-    -DnsName $DnsName -NotAfter (Get-Date).AddDays($ValidDays)
+Add-Type -AssemblyName System.Security
+
+$rsa = [System.Security.Cryptography.RSA]::Create(2048)
 try {
-    if ($Password) {
-        $secure = ConvertTo-SecureString -String $Password -Force -AsPlainText
-        Export-PfxCertificate -Cert $cert -FilePath $OutFile -Password $secure | Out-Null
-    } else {
-        Export-PfxCertificate -Cert $cert -FilePath $OutFile | Out-Null
+    $request = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+        [System.Security.Cryptography.X509Certificates.X500DistinguishedName]::new($Subject),
+        $rsa,
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+        [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+
+    $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
+    foreach ($name in $DnsName) {
+        $ip = $null
+        if ([System.Net.IPAddress]::TryParse($name, [ref]$ip)) {
+            $san.AddIpAddress($ip)
+        } else {
+            $san.AddDnsName($name)
+        }
     }
-    Write-Host "Exported certificate: $OutFile"
-    Write-Host "Thumbprint: $($cert.Thumbprint)"
+    $request.CertificateExtensions.Add($san.Build())
+
+    $keyUsage = [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::DigitalSignature -bor
+        [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::KeyEncipherment
+    $request.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509KeyUsageExtension]::new($keyUsage, $false))
+
+    $eku = [System.Security.Cryptography.OidCollection]::new()
+    [void]$eku.Add([System.Security.Cryptography.Oid]::new("1.3.6.1.5.5.7.3.1"))
+    $request.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($eku, $false))
+
+    $cert = $request.CreateSelfSigned(
+        [System.DateTimeOffset]::UtcNow.AddDays(-1),
+        [System.DateTimeOffset]::UtcNow.AddDays($ValidDays))
+    try {
+        $outPath = [System.IO.Path]::GetFullPath($OutFile)
+        $outParent = Split-Path -Parent $outPath
+        if ($outParent) {
+            New-Item -ItemType Directory -Force -Path $outParent | Out-Null
+        }
+        $bytes = $cert.Export(
+            [System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx,
+            $Password)
+        [System.IO.File]::WriteAllBytes($outPath, $bytes)
+        Write-Host "Exported certificate: $outPath"
+        Write-Host "Thumbprint: $($cert.Thumbprint)"
+    } finally {
+        $cert.Dispose()
+    }
 } finally {
-    Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $cert.Thumbprint) -Force
+    $rsa.Dispose()
 }
